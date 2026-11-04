@@ -13,6 +13,13 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 - Nome e descrizione dell'estensione tradotti nel manifest (`_locales`).
 - Nel report JSON, campo `language` e codice stabile `type` per ogni file.
 
+### Corretto
+
+- La pagina di copertina poteva continuare su una seconda pagina: ora si adatta per stare in
+  una sola, riducendo se serve caratteri e spaziature. Gli elenchi molto lunghi (nomi del
+  certificato, redirect) e i valori lunghissimi vengono accorciati in copertina, con rimando al
+  report che li riporta per intero.
+
 ## [1.4.0] - 2026-11-04
 
 Prima versione completa, non pubblicata.

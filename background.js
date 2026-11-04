@@ -335,7 +335,12 @@ function skewText(seconds, refKey) {
   return t("skew.value", { direction: t(seconds > 0 ? "clock.behind" : "clock.ahead"), seconds: Math.abs(seconds), ref });
 }
 
-function networkRows(net, error) {
+// In copertina gli elenchi lunghi vengono accorciati; il report li riporta interi.
+const COVER_MAX_SAN = 8;
+const COVER_MAX_REDIRECTS = 3;
+const COVER_MAX_VALUE = 400;
+
+function networkRows(net, error, compact = false) {
   if (error) return [[t("row.error"), error]];
   if (!net?.document) return [[t("row.status"), t("net.noDocument")]];
   const d = net.document;
@@ -348,7 +353,11 @@ function networkRows(net, error) {
   if (d.fromServiceWorker || d.fromDiskCache) {
     rows.push([t("row.origin"), t(d.fromServiceWorker ? "net.serviceWorker" : "net.diskCache")]);
   }
-  net.redirects.forEach((r, i) => rows.push([t("row.redirect", { n: i + 1 }), `${r.status} ${r.url}${r.remoteIPAddress ? " (" + r.remoteIPAddress + ")" : ""}`]));
+  const redirects = compact ? net.redirects.slice(0, COVER_MAX_REDIRECTS) : net.redirects;
+  redirects.forEach((r, i) => rows.push([t("row.redirect", { n: i + 1 }), `${r.status} ${r.url}${r.remoteIPAddress ? " (" + r.remoteIPAddress + ")" : ""}`]));
+  if (net.redirects.length > redirects.length) {
+    rows.push(["", t("cover.more", { n: net.redirects.length - redirects.length })]);
+  }
   if (d.security) {
     const s = d.security;
     rows.push(
@@ -357,7 +366,11 @@ function networkRows(net, error) {
       [t("row.issuer"), s.issuer],
       [t("row.validity"), `${s.validFrom} - ${s.validTo}`]
     );
-    if (s.sanList?.length) rows.push([t("row.san"), s.sanList.join(", ")]);
+    if (s.sanList?.length) {
+      const names = compact ? s.sanList.slice(0, COVER_MAX_SAN) : s.sanList;
+      const more = s.sanList.length - names.length;
+      rows.push([t("row.san"), names.join(", ") + (more ? ` ${t("cover.more", { n: more })}` : "")]);
+    }
   }
   if (net.certificate) rows.push([t("row.certFingerprint"), `SHA-256 ${net.certificate.sha256}`]);
   if (net.serverDate) {
@@ -406,7 +419,7 @@ function buildCover(acq, relatedFiles) {
     { title: t("cover.env"), rows: envRows(acq) }
   ];
   if (acq.features.network) {
-    sections.push({ title: t("cover.network"), rows: networkRows(acq.network, acq.networkError) });
+    sections.push({ title: t("cover.network"), rows: networkRows(acq.network, acq.networkError, true) });
   }
   if (relatedFiles.length) {
     sections.push({
@@ -414,6 +427,12 @@ function buildCover(acq, relatedFiles) {
       rows: relatedFiles.flatMap((f) => [[f.role, f.name], ["SHA-256", f.sha256]])
     });
   }
+  // Un valore lunghissimo (es. URL con molti parametri) occuperebbe mezza pagina.
+  const shorten = (value) => {
+    const text = cleanText(value);
+    return text.length > COVER_MAX_VALUE ? `${text.slice(0, COVER_MAX_VALUE)}… ${t("cover.truncated")}` : text;
+  };
+  for (const section of sections) section.rows = section.rows.map(([label, value]) => [label, shorten(value)]);
   const notes = [
     t("cover.note.screenshot"),
     t("cover.note.hash"),
