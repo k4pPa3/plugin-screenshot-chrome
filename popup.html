@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { width: 300px; padding: 14px; }
+    header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    header img { width: 22px; height: 22px; }
+    header h1 { font-size: 14px; margin: 0; flex: 1; }
+    .icon-btn {
+      border: 0; background: none; color: inherit; cursor: pointer;
+      padding: 4px; border-radius: 4px; display: flex;
+    }
+    .icon-btn:hover { background: var(--hover); }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .features { margin: 12px 0; border-top: 1px solid var(--border); padding-top: 8px; }
+    .features .hint { font-size: 11px; color: var(--muted); }
+    #status { margin-top: 10px; min-height: 1em; font-size: 12px; }
+    #status.error { color: var(--danger); }
+    .warn { color: var(--warn); font-size: 11.5px; margin-top: 6px; }
+    .hash {
+      margin-top: 4px; padding: 6px;
+      font: 11px ui-monospace, Consolas, monospace;
+      word-break: break-all;
+      background: var(--code-bg);
+      border-radius: 4px;
+      user-select: all;
+    }
+    .hash-label { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    .last { font-size: 11px; color: var(--muted); margin-top: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon-48.png" alt="">
+    <h1>Full Page Screenshot</h1>
+    <button class="icon-btn" id="openOptions" data-i18n-title="popup.settings" data-i18n-aria-label="popup.settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="row2">
+    <label class="field">
+      <span data-i18n="popup.width"></span>
+      <select id="width">
+        <option value="0" data-i18n="popup.width.window"></option>
+        <option value="1920">1920 px</option>
+        <option value="1366">1366 px</option>
+        <option value="1024">1024 px</option>
+        <option value="390" data-i18n="popup.width.mobile"></option>
+      </select>
+    </label>
+    <label class="field">
+      <span data-i18n="popup.format"></span>
+      <select id="format">
+        <option value="pdf">PDF</option>
+        <option value="png">PNG</option>
+        <option value="jpeg">JPEG</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="features">
+    <label class="switch"><input type="checkbox" data-feature="cover"><span class="track"></span><span class="text"><span data-i18n="feature.cover"></span> <span class="hint" data-i18n="feature.cover.hint"></span></span></label>
+    <label class="switch"><input type="checkbox" data-feature="autoScroll"><span class="track"></span><span class="text" data-i18n="feature.autoScroll"></span></label>
+    <label class="switch"><input type="checkbox" data-feature="mhtml"><span class="track"></span><span class="text" data-i18n="feature.mhtml"></span></label>
+    <label class="switch"><input type="checkbox" data-feature="html"><span class="track"></span><span class="text" data-i18n="feature.html"></span></label>
+    <label class="switch"><input type="checkbox" data-feature="network"><span class="track"></span><span class="text"><span data-i18n="feature.network"></span> <span class="hint" data-i18n="feature.network.hint"></span></span></label>
+    <label class="switch"><input type="checkbox" data-feature="timestamp"><span class="track"></span><span class="text"><span data-i18n="feature.timestamp"></span> <span class="hint" id="tsaHint"></span></span></label>
+    <label class="switch"><input type="checkbox" data-feature="jsonReport"><span class="track"></span><span class="text" data-i18n="feature.jsonReport"></span></label>
+    <label class="switch"><input type="checkbox" data-feature="zip"><span class="track"></span><span class="text" data-i18n="feature.zip"></span></label>
+  </div>
+
+  <button class="primary" id="capture" data-i18n="popup.capture"></button>
+  <div id="status"></div>
+  <div id="result"></div>
+  <script src="lib/i18n.js"></script>
+  <script src="lib/locales/en.js"></script>
+  <script src="lib/locales/it.js"></script>
+  <script src="lib/locales/fr.js"></script>
+  <script src="lib/locales/es.js"></script>
+  <script src="lib/common.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

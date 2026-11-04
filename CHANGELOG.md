@@ -1,0 +1,113 @@
+# Changelog
+
+Tutte le modifiche rilevanti del progetto. Il formato segue
+[Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
+[Semantic Versioning](https://semver.org/lang/it/).
+
+## [1.5.0] - 2026-11-04
+
+### Aggiunto
+
+- Interfaccia, messaggi, report e pagina di copertina in inglese, italiano, francese e spagnolo.
+  La lingua si sceglie nelle Impostazioni (predefinita: quella del browser).
+- Nome e descrizione dell'estensione tradotti nel manifest (`_locales`).
+- Nel report JSON, campo `language` e codice stabile `type` per ogni file.
+
+## [1.4.0] - 2026-11-04
+
+Prima versione completa, non pubblicata.
+
+### Aggiunto
+
+- Autore, licenza MIT, documentazione e workflow di release.
+- Versione e crediti nella pagina Impostazioni.
+- Script `tools/build.py` per creare il pacchetto.
+- Configurazione separata per ogni servizio di marca temporale.
+- Sottocartella di Download configurabile.
+- Esito dell'ultima cattura conservato e mostrato riaprendo il popup, con badge sull'icona.
+- Servizio di marca temporale configurato indicato nel popup.
+- Indicatore di modifiche non salvate e pulsante *Ripristina predefiniti* nelle Impostazioni.
+- Altezza massima catturata configurabile.
+- `SECURITY.md` con modello di sicurezza e procedura di segnalazione.
+
+### Sicurezza
+
+- Le credenziali della TSA non vengono più salvate in chiaro: restano in memoria fino alla
+  chiusura del browser oppure vengono cifrate con una password di protezione (AES-256-GCM,
+  PBKDF2-SHA256 a 600.000 iterazioni). Quelle delle versioni precedenti vengono spostate in
+  memoria e cancellate dal disco.
+- Lo scorrimento e la lettura dell'HTML avvengono in un mondo JavaScript isolato: la pagina non
+  può più falsificare l'HTML salvato né bloccare la cattura ridefinendo funzioni del browser.
+- Timeout su tutte le operazioni eseguite nella pagina.
+- URL e titolo del report sono quelli effettivi al momento dello screenshot; il cambio di
+  indirizzo durante la cattura viene segnalato.
+- L'HTML salvato contiene una Content-Security-Policy che impedisce l'esecuzione di script e il
+  caricamento di risorse esterne all'apertura.
+- I valori dei cookie (`Set-Cookie`) e le password negli URL vengono rimossi dai report.
+- Caratteri di controllo e di direzione del testo rimossi da nomi di file e report.
+- Richieste alla TSA senza redirect né cookie, con timeout e dimensione massima della risposta;
+  credenziali mai inviate via `http`.
+- Il service worker accetta comandi solo dal popup dell'estensione.
+- Content-Security-Policy restrittiva per le pagine dell'estensione.
+- Workflow di release con permessi minimi, azioni fissate a un commit e hash del pacchetto.
+
+### Corretto
+
+- Cambiando servizio di marca temporale, le credenziali del precedente venivano inviate al nuovo.
+- Credenziali e header potevano essere inviati in chiaro a servizi `http`: ora la richiesta viene bloccata.
+- Un secondo clic durante una cattura in corso ne avviava un'altra in conflitto.
+- L'attesa dopo il ridimensionamento non accettava il valore 0.
+- Il popup poteva sovrascrivere le impostazioni salvate nel frattempo dalla pagina Impostazioni.
+
+## [1.3.2] - 2026-11-04
+
+### Corretto
+
+- Scarto dell'orologio calcolato in modo errato quando la pagina arriva dalla cache di una CDN:
+  ora si usa `Date` + `Age`.
+
+## [1.3.1] - 2026-11-04
+
+### Aggiunto
+
+- Confronto dell'orologio del PC con il server e con la TSA, con avviso nel popup oltre 10 s.
+
+### Corretto
+
+- Il report JSON includeva per errore il contenuto binario dei file (decine di MB).
+- La copertina occupava una pagina in più per poche righe di note.
+
+## [1.3.0] - 2026-11-04
+
+### Aggiunto
+
+- Interruttori nel popup per ogni funzione e pagina Impostazioni.
+- Pagina di copertina nel PDF.
+- Salvataggio MHTML e HTML.
+- Dati di rete: risposta HTTP, IP, redirect, header, certificato TLS.
+- Marca temporale RFC 3161 con TSA configurabile (credenziali, header, policy OID).
+- Report JSON e archivio ZIP con `SHA256SUMS.txt`.
+- Scorrimento automatico prima della cattura.
+- Icona dell'estensione.
+
+## [1.2.0] - 2026-11-04
+
+### Corretto
+
+- Sui siti che disegnano solo la parte visibile (es. Reddit) lo screenshot ripeteva la stessa
+  porzione: ora la finestra simulata viene allargata all'altezza dell'intera pagina.
+
+## [1.1.0] - 2026-11-04
+
+### Aggiunto
+
+- Formato PDF.
+- Report con hash SHA-256 e data/ora dell'acquisizione.
+
+## [1.0.0] - 2026-11-04
+
+### Aggiunto
+
+- Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
+
+[1.5.0]: ../../releases/tag/v1.5.0

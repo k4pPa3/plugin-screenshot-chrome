@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "Cattura l'intera pagina in PDF o immagine, con hash SHA-256, report di acquisizione e marca temporale RFC 3161." },
+  "actionTitle": { "message": "Screenshot pagina intera" }
+}

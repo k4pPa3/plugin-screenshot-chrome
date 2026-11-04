@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "Captura la página web completa en PDF o imagen, con hashes SHA-256, informe de captura y sello de tiempo RFC 3161." },
+  "actionTitle": { "message": "Captura de página completa" }
+}

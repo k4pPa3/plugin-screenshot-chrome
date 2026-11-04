@@ -1,0 +1,26 @@
+# Pacchetti generati da tools/build.py
+dist/
+*.zip
+
+# Acquisizioni salvate dall'estensione (contengono dati delle pagine catturate)
+/*_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9]-[0-9][0-9]-[0-9][0-9]*
+*.pdf
+*.mhtml
+*.tsr
+*.report.txt
+*.report.json
+*.sha256.txt
+SHA256SUMS.txt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editor e sistema operativo
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

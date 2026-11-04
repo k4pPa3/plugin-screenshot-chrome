@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Nessun permesso di default; il job chiede solo quello che gli serve.
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Azione fissata a un commit preciso (v5.1.0) per evitare che un tag
+      # spostato introduca codice diverso; Dependabot la tiene aggiornata.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Controlla che il tag corrisponda alla versione del manifest
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Il tag $GITHUB_REF_NAME non corrisponde alla versione v$VERSION di manifest.json"
+            exit 1
+          fi
+
+      - name: Controlla la sintassi JavaScript
+        run: for f in background.js popup.js options.js lib/*.js; do node --check "$f"; done
+
+      - name: Crea il pacchetto
+        run: python3 tools/build.py
+
+      - name: Calcola l'hash del pacchetto
+        run: cd dist && sha256sum *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Pubblica la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --title "$GITHUB_REF_NAME" --generate-notes

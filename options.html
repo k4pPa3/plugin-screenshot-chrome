@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Full Page Screenshot</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { padding: 32px 16px; }
+    main { max-width: 640px; margin: 0 auto; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+    header img { width: 40px; height: 40px; }
+    h1 { font-size: 20px; margin: 0; }
+    section { border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 18px; }
+    h2 { font-size: 15px; margin: 0 0 4px; }
+    .desc { color: var(--muted); margin: 0 0 14px; line-height: 1.45; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+    @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+    .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+    .actions button.primary { width: auto; }
+    #tsaResult, #saveStatus { font-size: 12.5px; line-height: 1.45; }
+    .ok { color: var(--ok); }
+    .error { color: var(--danger); }
+    h3 { font-size: 13.5px; margin: 18px 0 8px; }
+    .vault-actions { display: flex; align-items: flex-end; }
+    input:disabled { opacity: .55; }
+    footer { margin-top: 32px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icons/icon-128.png" alt="">
+    <h1 data-i18n="options.heading"></h1>
+  </header>
+
+  <section>
+    <h2 data-i18n="options.general"></h2>
+    <p class="desc" data-i18n="options.language.desc"></p>
+    <label class="field">
+      <span data-i18n="options.language"></span>
+      <select id="language"></select>
+    </label>
+  </section>
+
+  <section>
+    <h2 data-i18n="options.tsa.title"></h2>
+    <p class="desc" data-i18n="options.tsa.desc"></p>
+    <label class="field">
+      <span data-i18n="options.tsa.service"></span>
+      <select id="tsaPreset"></select>
+    </label>
+    <label class="field">
+      <span data-i18n="options.tsa.url"></span>
+      <input type="url" id="tsaUrl" placeholder="https://…" spellcheck="false">
+    </label>
+    <div class="grid">
+      <label class="field">
+        <span data-i18n="options.tsa.username"></span>
+        <input type="text" id="tsaUsername" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field">
+        <span data-i18n="options.tsa.password"></span>
+        <input type="password" id="tsaPassword" autocomplete="new-password">
+      </label>
+      <label class="field">
+        <span data-i18n="options.tsa.headerName"></span>
+        <input type="text" id="tsaHeaderName" placeholder="X-API-Key" spellcheck="false">
+      </label>
+      <label class="field">
+        <span data-i18n="options.tsa.headerValue"></span>
+        <input type="password" id="tsaHeaderValue" autocomplete="new-password">
+      </label>
+    </div>
+    <label class="field">
+      <span data-i18n="options.tsa.policy"></span>
+      <input type="text" id="tsaPolicyOid" data-i18n-placeholder="options.tsa.policy.placeholder" spellcheck="false">
+    </label>
+    <p class="desc" data-i18n="options.tsa.perService"></p>
+    <p class="desc error" id="tsaWarning" hidden></p>
+
+    <h3 data-i18n="options.secrets.title"></h3>
+    <label class="field">
+      <span data-i18n="options.secrets.mode"></span>
+      <select id="secretMode">
+        <option value="session" data-i18n="options.secrets.session"></option>
+        <option value="encrypted" data-i18n="options.secrets.encrypted"></option>
+      </select>
+    </label>
+    <p class="desc" id="secretModeHelp"></p>
+    <div id="vaultBox" hidden>
+      <div class="grid">
+        <label class="field">
+          <span id="vaultPasswordLabel"></span>
+          <input type="password" id="vaultPassword" autocomplete="new-password">
+        </label>
+        <div class="field vault-actions">
+          <button class="secondary" id="unlock" data-i18n="options.vault.unlock" hidden></button>
+        </div>
+      </div>
+      <p class="desc" id="vaultStatus"></p>
+    </div>
+    <div class="actions">
+      <button class="secondary" id="testTsa" data-i18n="options.test"></button>
+      <span id="tsaResult"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2 data-i18n="options.advanced.title"></h2>
+    <p class="desc" data-i18n="options.advanced.desc"></p>
+    <div class="grid">
+      <label class="field">
+        <span data-i18n="options.advanced.jpeg"></span>
+        <input type="number" id="jpegQuality" min="1" max="100">
+      </label>
+      <label class="field">
+        <span data-i18n="options.advanced.settle"></span>
+        <input type="number" id="settleDelay" min="0" max="10000" step="100">
+      </label>
+      <label class="field">
+        <span data-i18n="options.advanced.timeout"></span>
+        <input type="number" id="loadTimeout" min="1000" max="120000" step="1000">
+      </label>
+      <label class="field">
+        <span data-i18n="options.advanced.maxHeight"></span>
+        <input type="number" id="maxHeight" min="1000" max="200000" step="1000">
+      </label>
+      <label class="field">
+        <span data-i18n="options.advanced.subfolder"></span>
+        <input type="text" id="subfolder" data-i18n-placeholder="options.advanced.subfolder.placeholder" spellcheck="false">
+      </label>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="primary" id="save" data-i18n="options.save"></button>
+    <button class="secondary" id="reset" data-i18n="options.reset"></button>
+    <span id="saveStatus"></span>
+  </div>
+
+  <footer>
+    <span id="version"></span> · <span data-i18n="options.footer"></span>
+  </footer>
+</main>
+<script src="lib/i18n.js"></script>
+<script src="lib/locales/en.js"></script>
+<script src="lib/locales/it.js"></script>
+<script src="lib/locales/fr.js"></script>
+<script src="lib/locales/es.js"></script>
+<script src="lib/common.js"></script>
+<script src="lib/tsa.js"></script>
+<script src="lib/vault.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

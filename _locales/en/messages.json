@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "Capture the full web page as PDF or image, with SHA-256 hashes, a capture report and an RFC 3161 timestamp." },
+  "actionTitle": { "message": "Full-page screenshot" }
+}
