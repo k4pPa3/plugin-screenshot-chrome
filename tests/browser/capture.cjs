@@ -50,7 +50,15 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     assert.ok(port, 'Chromium must expose its debugging port');
     connection = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { noDefaults: true });
     browser = connection.contexts()[0];
-    const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
+    const isExtension = worker => worker.url().endsWith('/background.js');
+    const worker = browser.serviceWorkers().find(isExtension) || await browser.waitForEvent('serviceworker', { predicate: isExtension });
+    let ready = false;
+    for (let i = 0; i < 100; i++) {
+      ready = await worker.evaluate(() => typeof capture === 'function' && typeof DEFAULT_SETTINGS !== 'undefined');
+      if (ready) break;
+      await delay(100);
+    }
+    assert.ok(ready, 'Extension worker must finish loading its scripts');
     const page = await browser.newPage();
     await page.goto(`${base}/redirect`);
     // Keep a redirect as the reload target to exercise requestId reuse.
@@ -110,7 +118,7 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     assert.match(interrupted, /Download not completed/);
   } finally {
     if (connection) await connection.close();
-    if (process && process.exitCode === null) {
+    if (process && process.exitCode === null && process.signalCode === null) {
       const exited = new Promise(resolve => process.once('exit', resolve));
       process.kill('SIGKILL');
       await exited;
