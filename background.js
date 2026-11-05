@@ -3,7 +3,7 @@
 
 importScripts(
   "lib/i18n.js", "lib/locales/en.js", "lib/locales/it.js", "lib/locales/fr.js", "lib/locales/es.js",
-  "lib/common.js", "lib/pdf.js", "lib/zip.js", "lib/tsa.js", "lib/vault.js"
+  "lib/common.js", "lib/pdf.js", "lib/zip.js", "lib/tsa.js", "lib/tsaroots.js", "lib/tsaverify.js", "lib/vault.js"
 );
 
 // Aggiornando da una versione che salvava le credenziali in chiaro, le toglie dal disco.
@@ -150,7 +150,10 @@ async function collectNetworkInfo(target, settings) {
           issuer: r.securityDetails.issuer,
           sanList: r.securityDetails.sanList,
           validFrom: isoFromSeconds(r.securityDetails.validFrom),
-          validTo: isoFromSeconds(r.securityDetails.validTo)
+          validTo: isoFromSeconds(r.securityDetails.validTo),
+          sctCount: Array.isArray(r.securityDetails.signedCertificateTimestampList)
+            ? r.securityDetails.signedCertificateTimestampList.length : null,
+          ctCompliance: r.securityDetails.certificateTransparencyCompliance || null
         } : null
       };
     }
@@ -198,7 +201,20 @@ async function collectNetworkInfo(target, settings) {
       }
     } catch (_) {}
   }
+  if (net.document?.security) {
+    net.tlsInterception = detectTlsInterception(net.document.security, net.document.receivedAt);
+  }
   return net;
+}
+
+// Errore che ferma la cattura prima dello screenshot: il popup propone di
+// disattivare la protezione e ricontrollare, oppure di acquisire comunque.
+class TlsInterceptionError extends Error {
+  constructor(info) {
+    super(t("err.tlsInterception", { issuer: info.product || info.issuer }));
+    this.code = "tls.interception";
+    this.info = info;
+  }
 }
 
 async function autoScroll(target, world, settings) {
@@ -218,7 +234,7 @@ async function autoScroll(target, world, settings) {
   })()`, limit + 5000);
 }
 
-async function capture(tab, settings) {
+async function capture(tab, settings, { override = false } = {}) {
   const { features, advanced } = settings;
   const width = Number(settings.width) || 0;
   const target = { tabId: tab.id };
@@ -233,6 +249,11 @@ async function capture(tab, settings) {
         result.network = await collectNetworkInfo(target, settings);
       } catch (err) {
         result.networkError = err.message;
+      }
+      const tls = result.network?.tlsInterception;
+      if (tls && tls.status !== "none") {
+        if (advanced.tlsCheck && !override) throw new TlsInterceptionError(tls);
+        tls.userOverride = override;
       }
     }
     // Dopo l'eventuale ricarica: il mondo isolato è legato al documento.
@@ -361,6 +382,15 @@ function networkRows(net, error, compact = false) {
       [t("row.issuer"), s.issuer],
       [t("row.validity"), `${s.validFrom} - ${s.validTo}`]
     );
+    if (Number.isFinite(s.sctCount)) {
+      rows.push([t("row.ct"), t("ct.value", { n: s.sctCount, compliance: s.ctCompliance || "unknown" })]);
+    }
+    const tls = net.tlsInterception;
+    if (tls) {
+      rows.push([t("row.tlsInterception"), tls.status === "none" ? t("tls.none")
+        : t(`tls.${tls.status}`, { issuer: tls.product || tls.issuer, signals: tls.signals.join(", ") })
+          + (tls.userOverride ? ` ${t("tls.override")}` : "")]);
+    }
     if (s.sanList?.length) {
       const names = compact ? s.sanList.slice(0, COVER_MAX_SAN) : s.sanList;
       const more = s.sanList.length - names.length;
@@ -433,6 +463,8 @@ function buildCover(acq, relatedFiles) {
     t("cover.note.hash"),
     t(acq.features.timestamp ? "cover.note.tsa" : "cover.note.clock")
   ];
+  const tls = acq.network?.tlsInterception;
+  if (tls && tls.status !== "none") notes.unshift(t("cover.note.tlsInterception", { issuer: tls.product || tls.issuer }));
   return {
     title: t("cover.title"),
     subtitle: `${acq.extension} - ${localIsoWithOffset(acq.date)}`,
@@ -601,7 +633,7 @@ async function fileEntry(name, type, role, bytes, mime) {
   return { name, type, role, bytes, mime, size: bytes.length, sha256: await sha256Hex(bytes) };
 }
 
-async function run(tab) {
+async function run(tab, options = {}) {
   const settings = await getSettings();
   setLanguage(settings.language);
   const { features } = settings;
@@ -621,7 +653,7 @@ async function run(tab) {
     tsaConfig = { ...settings.tsa, ...secret };
   }
 
-  const shot = await capture(tab, settings);
+  const shot = await capture(tab, settings, options);
   const manifest = chrome.runtime.getManifest();
   const withoutHash = (u) => String(u || "").split("#")[0];
   const urlChanged = withoutHash(shot.url) !== withoutHash(tab.url);
@@ -636,7 +668,7 @@ async function run(tab) {
     emulatedWidth: Number(settings.width) || 0,
     format,
     features,
-    userAgent: navigator.userAgent,
+    userAgent: (await browserName()) + " — " + navigator.userAgent,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     extension: `${manifest.name} ${manifest.version}`,
     network: shot.network,
@@ -668,6 +700,7 @@ async function run(tab) {
 
   const outputs = [main, ...related];
   const warnings = [];
+  const notes = [];
 
   // Il report descrive la richiesta. L'esito va in un file separato, perché
   // il report stesso viene vincolato dal manifest prima della richiesta TSA.
@@ -677,6 +710,12 @@ async function run(tab) {
     receipt: `${base}.timestamp.json`
   };
   if (shot.networkError) warnings.push(t("warn.network", { error: shot.networkError }));
+  const tls = shot.network?.tlsInterception;
+  if (tls && tls.status !== "none") {
+    warnings.push(t("warn.tlsInterception", { issuer: tls.product || tls.issuer }));
+  } else if (tls && options.afterInterception) {
+    notes.push(t("note.tlsClean"));
+  }
   if (urlChanged) warnings.push(t("warn.urlChanged", { url: acq.url }));
   if (shot.fullHeight) warnings.push(t("warn.truncated", { height: shot.height, full: shot.fullHeight }));
   const skew = shot.network?.clockSkewSeconds;
@@ -706,7 +745,10 @@ async function run(tab) {
       const ts = await requestTimestamp(await sha256Bytes(evidenceManifest.bytes), tsaConfig);
       acq.timestamp = { ...acq.timestamp, ...ts, targetSha256: targetHash };
       outputs.push({ name: `${base}.tsr`, bytes: ts.tsr, mime: "application/timestamp-reply" });
-      warnings.push(t("tsa.unverified"));
+      acq.timestamp.verificationText = timestampCheckMessage(ts);
+      // Solo una marca verificata non genera avviso.
+      if (ts.verification === "verified") notes.push(acq.timestamp.verificationText);
+      else warnings.push(acq.timestamp.verificationText);
     } catch (err) {
       acq.timestamp = { ...acq.timestamp, status: "failed", error: err.message, targetSha256: targetHash };
       warnings.push(t("warn.tsa", { error: err.message }));
@@ -739,6 +781,7 @@ async function run(tab) {
     zipHash,
     genTime: acq.timestamp?.genTime || null,
     timestampVerification: acq.timestamp?.verification || null,
+    notes,
     warnings
   };
 }
@@ -754,11 +797,37 @@ function setBadge(text, color) {
   if (color) chrome.action.setBadgeBackgroundColor({ color });
 }
 
+// Nome e versione del browser per il report. Edge si riconosce dai brand di
+// userAgentData; Brave si presenta come Chrome ed espone navigator.brave.
+async function browserName() {
+  let name = "Chromium";
+  try {
+    if (navigator.brave && await navigator.brave.isBrave()) name = "Brave";
+  } catch (_) {}
+  const brands = navigator.userAgentData?.brands || [];
+  const pick = (re) => brands.find((b) => re.test(b.brand));
+  const known = pick(/Microsoft Edge/) || pick(/Opera/) || pick(/Brave/) || pick(/Google Chrome/) || pick(/Chromium/);
+  if (name === "Brave") return `Brave ${(pick(/Chromium/) || known)?.version || ""}`.trim();
+  if (known) return `${known.brand} ${known.version}`;
+  const edge = navigator.userAgent.match(/Edg\/([\d.]+)/);
+  return edge ? `Microsoft Edge ${edge[1]}` : name;
+}
+
 let busy = false;
 
+// Accetta comandi solo dal popup dell'azione: stessa estensione, percorso
+// esatto (senza query/fragment) e nessuna scheda associata (il popup aperto
+// come scheda normale ha sender.tab).
+function isPopupSender(sender) {
+  if (sender?.id !== chrome.runtime.id || sender.tab) return false;
+  try {
+    const u = new URL(sender.url), p = new URL(chrome.runtime.getURL("popup.html"));
+    return u.origin === p.origin && u.pathname === p.pathname && !u.search && !u.hash;
+  } catch (_) { return false; }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Accetta il comando solo dal popup di questa estensione.
-  if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL("popup.html"))) return;
+  if (!isPopupSender(sender)) return;
   if (msg?.type !== "capture") return;
 
   if (busy) {
@@ -771,17 +840,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     let tab;
     try {
       [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab || /^(chrome|edge|about|chrome-extension|devtools):/.test(tab.url || "")) {
+      if (!tab || !isCapturableUrl(tab.url)) {
         throw new Error(t("err.internalPage"));
       }
       await setCaptureState({ status: "running", title: tab.title || "", url: tab.url || "" });
       setBadge("…", "#1a73e8");
-      const result = await run(tab);
+      // Ricorda tra una cattura e l'altra che è stata rilevata un'intercettazione,
+      // per ricordare di riattivare la protezione a cattura pulita.
+      const { tlsSeen } = await chrome.storage.session.get("tlsSeen");
+      const result = await run(tab, { override: msg.override === true, afterInterception: !!tlsSeen });
+      if (tlsSeen) await chrome.storage.session.remove("tlsSeen");
       await setCaptureState({ status: "done", title: tab.title || "", url: tab.url || "", ...result });
       setBadge(result.warnings.length ? "!" : "OK", result.warnings.length ? "#e37400" : "#188038");
       sendResponse({ ok: true, ...result });
     } catch (err) {
       const error = err?.message || String(err);
+      if (err?.code === "tls.interception") {
+        await chrome.storage.session.set({ tlsSeen: true });
+        await setCaptureState({ status: "interception", title: tab?.title || "", url: tab?.url || "", error, interception: err.info });
+        setBadge("!", "#e37400");
+        sendResponse({ ok: false, interception: err.info, error });
+        return;
+      }
       await setCaptureState({ status: "error", title: tab?.title || "", url: tab?.url || "", error });
       setBadge("ERR", "#d93025");
       sendResponse({ ok: false, error });

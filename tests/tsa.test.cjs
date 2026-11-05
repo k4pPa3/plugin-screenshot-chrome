@@ -89,3 +89,16 @@ test('real OpenSSL timestamp round trip verifies manifest and detects tampering'
     assert.throws(() => openssl(...args));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('rejection reports statusString and failInfo from the TSA', async () => {
+  const c = await fixture();
+  const msg = c.eval(`
+    const text = der(0x30, der(0x0c, new TextEncoder().encode('policy not\u202e allowed')));
+    const fail = der(0x03, [0x00, 0x00, 0x01]); // bit 15: unacceptedPolicy
+    const resp = der(0x30, der(0x30, concat(der(2, [2]), text, fail)));
+    try { parseTimestampResponse(resp, expectedHash, expectedNonce); 'no error' } catch (e) { e.code + '|' + e.message }
+  `);
+  assert.match(msg, /^tsa\.rejected\|/);
+  assert.match(msg, /rejection/);
+  assert.match(msg, /policy not  allowed; unacceptedPolicy/);
+});

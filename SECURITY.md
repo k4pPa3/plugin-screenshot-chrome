@@ -34,16 +34,25 @@ fornisce e il servizio di marca temporale. In particolare:
   di file e report.
 - **Marca temporale**: credenziali e header vengono inviati solo via `https`, senza redirect,
   senza cookie, con timeout e dimensione massima della risposta. Struttura DER, algoritmo, hash, nonce obbligatorio e policy della risposta
-  vengono controllati. Firma e fiducia dei certificati NON sono verificate dall’estensione:
-  lo stato è `not-verified` e la verifica va eseguita con OpenSSL (vedi README).
+  vengono controllati. La firma CMS (impronta, `signingCertificate`, firma) e la catena dei
+  certificati fino a una radice inclusa o aggiunta dall’utente vengono verificate; l’esito è
+  `verified`, `untrusted`, `invalid` o `unsupported`. La revoca (CRL/OCSP) NON è controllata.
+  Radici incluse in `lib/tsaroots.js`, con impronta SHA-256; vanno aggiornate quando cambiano.
 - **Integrità del pacchetto**: la marca riguarda un manifest di reperti e report immutabili.
   L’esito TSA resta in una ricevuta separata; il riepilogo finale include tutti gli altri file.
 - **Nomi e comandi**: nomi tecnici con UUID, indipendenti dal titolo della pagina; quoting
   esplicito nei comandi di verifica.
 - **Download**: esito positivo solo dopo lo stato `complete`; interruzioni, rimozioni,
   rinomina inattesa e timeout generano errore. Un errore può lasciare file parzialmente salvati.
-- **Messaggi**: il service worker accetta comandi solo dal popup dell'estensione; non ci sono
-  content script né risorse accessibili dalle pagine web.
+- **Messaggi**: il service worker accetta comandi solo dal popup dell'azione (stessa
+  estensione, percorso esatto, nessuna scheda associata); non ci sono content script né
+  risorse accessibili dalle pagine web.
+- **Pagine catturabili**: solo `http:`, `https:` e `file:`; pagine interne, `view-source:`,
+  `data:`, `blob:` e schemi di altri browser vengono rifiutati.
+- **Header della TSA**: il nome deve essere un token HTTP valido e non può sovrascrivere
+  header riservati come `Host`, `Content-Type`, `Authorization` o `Cookie`. Se l'URL punta
+  a una rete locale o privata (es. `localhost`, `192.168.x.x`, `169.254.x.x`) le opzioni
+  mostrano un avviso.
 - **Pagine dell'estensione**: Content-Security-Policy restrittiva (`script-src 'self'`,
   `object-src 'none'`, `frame-ancestors 'none'`); nessun contenuto inserito come HTML.
 

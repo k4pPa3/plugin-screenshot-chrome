@@ -1,8 +1,9 @@
-"""Crea dist/full-page-screenshot-<versione>.zip con i soli file dell'estensione.
+"""Crea dist/forensic-web-capture-<versione>.zip con i soli file dell'estensione.
 
 Uso: python tools/build.py
 """
 import json
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -33,13 +34,23 @@ def main() -> int:
         print("File mancanti:", ", ".join(missing), file=sys.stderr)
         return 1
 
-    out = ROOT / "dist" / f"full-page-screenshot-{version}.zip"
+    out = ROOT / "dist" / f"forensic-web-capture-{version}.zip"
     out.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for p in paths:
             z.write(p, p.relative_to(ROOT).as_posix())
 
+    # Copia estratta, pronta per "Carica estensione non pacchettizzata".
+    unpacked = out.with_suffix("")
+    if unpacked.exists():
+        shutil.rmtree(unpacked)
+    for p in paths:
+        dest = unpacked / p.relative_to(ROOT)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(p, dest)
+
     print(f"{out.relative_to(ROOT).as_posix()} ({len(paths)} file, {out.stat().st_size} byte)")
+    print(f"{unpacked.relative_to(ROOT).as_posix()}/ (cartella da caricare)")
     return 0
 
 

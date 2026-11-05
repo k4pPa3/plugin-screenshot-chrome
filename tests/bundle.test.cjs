@@ -11,13 +11,13 @@ function verify(sums, files) {
     return file && hash(file.bytes) === expected;
   });
 }
-async function bundle({ timestamp = true, zip = true, failTsa = false } = {}) {
+async function bundle({ timestamp = true, zip = true, failTsa = false, verification = 'untrusted' } = {}) {
   const c = await context();
-  c.testOptions = { timestamp, zip, failTsa };
+  c.testOptions = { timestamp, zip, failTsa, verification };
   c.eval(`
     getSettings = async () => ({...DEFAULT_SETTINGS, format:'png', features: {...DEFAULT_SETTINGS.features, html:true, mhtml:true, jsonReport:true, timestamp:testOptions.timestamp, zip:testOptions.zip}});
     capture = async () => ({date:new Date('2026-11-05T08:00:00Z'),url:'https://example.test/',title:'hostile title',width:800,height:600,image:new Uint8Array([1,2,3]),html:new TextEncoder().encode(protectHtml('<script>test</script>')),mhtml:new Uint8Array([4,5,6])});
-    requestTimestamp = async (hash) => { globalThis.stampedHash=toHex(hash); if(testOptions.failTsa) throw Error('TSA unavailable'); return {tsr:new Uint8Array([9,8,7]), status:'granted',verification:'not-verified',genTime:'2026-11-05T08:01:00Z'}; };
+    requestTimestamp = async (hash) => { globalThis.stampedHash=toHex(hash); if(testOptions.failTsa) throw Error('TSA unavailable'); return {tsr:new Uint8Array([9,8,7]), status:'granted',verification:testOptions.verification,reason:'test reason',signer:'Test TSA',anchor:'Test Root',genTime:'2026-11-05T08:01:00Z'}; };
     globalThis.outputs=[];
     const originalZip=makeZip;
     makeZip = (files,date) => { globalThis.outputs=files; return originalZip(files,date); };
@@ -38,15 +38,16 @@ test('timestamp binds the manifest, including both reports; all files have check
   assert.equal(verify(manifest.bytes, files), true);
   assert.equal(verify(sums.bytes, files), true);
   assert.equal(text(sums.bytes).trim().split('\n').length, files.length - 1);
-  assert.equal(result.timestampVerification, 'not-verified');
-  assert.ok(result.warnings.some(w => /NOT been verified/.test(w)));
+  assert.equal(result.timestampVerification, 'untrusted');
+  assert.ok(result.warnings.some(w => /does not chain to a trusted CA \(test reason\)/.test(w)));
   for (const f of files) assert.match(f.name, /^(capture_[0-9A-Za-z_.-]+|SHA256SUMS.txt)$/);
   const report = JSON.parse(text(files.find(f => f.name.endsWith('.report.json')).bytes));
   assert.equal(report.timestamp.target, manifest.name);
   assert.equal(report.timestamp.status, 'requested');
   const receipt = JSON.parse(text(files.find(f => f.name.endsWith('.timestamp.json')).bytes));
   assert.equal(receipt.targetSha256, hash(manifest.bytes));
-  assert.equal(receipt.verification, 'not-verified');
+  assert.equal(receipt.verification, 'untrusted');
+  assert.match(receipt.verificationText, /Test TSA/);
   assert.equal(receipt.status, 'granted');
 });
 
@@ -76,4 +77,18 @@ test('loose-file and TSA-disabled exports still include complete checksum covera
   assert.ok(sums);
   assert.equal(verify(sums.bytes, files), true);
   assert.equal(text(sums.bytes).trim().split('\n').length, files.length - 1);
+});
+
+test('verified timestamp is reported as a note, not a warning', async () => {
+  const { result, files } = await bundle({ verification: 'verified' });
+  assert.equal(result.timestampVerification, 'verified');
+  assert.ok(result.notes.some(n => /Timestamp verified: valid signature by .Test TSA., certificate chain up to Test Root/.test(n)));
+  assert.ok(!result.warnings.some(w => /Timestamp/.test(w)));
+  const receipt = JSON.parse(text(files.find(f => f.name.endsWith('.timestamp.json')).bytes));
+  assert.equal(receipt.anchor, 'Test Root');
+});
+
+test('invalid timestamp signature produces a warning', async () => {
+  const { result } = await bundle({ verification: 'invalid' });
+  assert.ok(result.warnings.some(w => /signature NOT valid \(test reason\)/.test(w)));
 });

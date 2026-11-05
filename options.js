@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id);
 const presetEl = $("tsaPreset");
 const saveStatus = $("saveStatus");
 // Campi salvati su disco; password e valore header sono gestiti da lib/vault.js.
-const tsaFields = ["url", "username", "headerName", "policyOid"];
+const tsaFields = ["url", "username", "headerName", "policyOid", "caPem"];
 const secretInputs = { password: "tsaPassword", headerValue: "tsaHeaderValue" };
 const numberFields = {
   jpegQuality: { min: 1, max: 100 },
@@ -86,6 +86,7 @@ function readForm() {
       : DEFAULT_SETTINGS.advanced[f];
   }
   settings.advanced.subfolder = cleanSubfolder($("subfolder").value);
+  settings.advanced.tlsCheck = $("tlsCheck").checked;
 }
 
 function renderVault() {
@@ -115,6 +116,7 @@ function fillForm() {
   fillTsaForm(settings.tsa, secrets[currentPreset]);
   for (const f of Object.keys(numberFields)) $(f).value = settings.advanced[f];
   $("subfolder").value = settings.advanced.subfolder;
+  $("tlsCheck").checked = settings.advanced.tlsCheck !== false;
   renderVault();
   checkTsaWarning();
 }
@@ -124,8 +126,13 @@ function checkTsaWarning() {
   const warning = $("tsaWarning");
   let insecure = false;
   try { insecure = new URL(tsa.url).protocol !== "https:" && tsaSendsSecrets(tsa); } catch (_) {}
-  warning.hidden = !insecure;
-  warning.textContent = insecure ? t("options.tsa.insecure") : "";
+  const badHeader = !isValidHeaderName(tsa.headerName);
+  const privateHost = isPrivateHost(tsa.url);
+  const badCa = !isValidCaPem(tsa.caPem);
+  warning.hidden = !insecure && !badHeader && !privateHost && !badCa;
+  warning.textContent = [insecure && t("options.tsa.insecure"), badHeader && t("tsa.badHeader"),
+    privateHost && t("options.tsa.private"), badCa && t("options.tsa.caPem.invalid")]
+    .filter(Boolean).join(" ");
 }
 
 function markDirty() {
@@ -205,7 +212,7 @@ $("language").addEventListener("change", async () => {
   if (dirty) show(saveStatus, t("options.unsaved"), "");
 });
 
-document.querySelectorAll("input").forEach((el) => el.addEventListener("input", () => {
+document.querySelectorAll("input, textarea").forEach((el) => el.addEventListener("input", () => {
   if (el.id.startsWith("tsa")) checkTsaWarning();
   if (el.id !== "vaultPassword" || !locked) markDirty();
 }));
@@ -289,7 +296,8 @@ $("testTsa").addEventListener("click", async () => {
     const hash = await sha256Bytes(new TextEncoder().encode(`test ${Date.now()}`));
     const ts = await requestTimestamp(hash, tsa);
     const note = dirty ? t("options.test.remember") : "";
-    show(out, t("options.test.ok", { time: ts.genTime, policy: ts.policy, size: ts.tsr.length }) + note, "ok");
+    show(out, t("options.test.ok", { time: ts.genTime, policy: ts.policy, size: ts.tsr.length }) + " "
+      + timestampCheckMessage(ts) + note, ts.verification === "verified" ? "ok" : "error");
   } catch (err) {
     show(out, err.message, "error");
   } finally {

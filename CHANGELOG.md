@@ -6,6 +6,12 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 
 ## [1.6.0] - Non rilasciata
 
+### Modificato
+
+- Nuovo nome: **Forensic Web Capture** (prima "Full Page Screenshot"); pacchetto
+  `forensic-web-capture-<versione>.zip`. Gli identificatori di schema dei report
+  (`full-page-screenshot/report@2`, `timestamp@1`) restano invariati per compatibilità.
+
 ### Sicurezza e integrità
 
 - Nomi dei file basati su UUID e comandi di verifica con quoting esplicito.
@@ -16,6 +22,29 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
   Interfaccia e report distinguono ricezione della risposta dalla verifica esterna della firma.
 - Download confermati solo al completamento; errori, rinomine e timeout sono segnalati.
 - Suite di regressione e verifica con TSA OpenSSL locale, eseguite in CI e prima del rilascio.
+- Rilevamento dell'intercettazione TLS da software locale (antivirus, VPN, proxy): SCT di
+  Certificate Transparency assenti, emittente noto, certificato appena generato. Con i dati
+  di rete attivi la cattura si sospende e il popup propone "Ricontrolla" o "Acquisisci
+  comunque"; esito, segnali ed eventuale conferma dell'utente finiscono in report e copertina.
+  Disattivabile in Impostazioni > Avanzate.
+- Cattura consentita solo su pagine `http:`, `https:` e `file:` (allowlist al posto della
+  lista di schemi vietati).
+- Comandi accettati solo dal popup dell'azione: percorso esatto, nessuna query, nessuna scheda.
+- Nome dell'header personalizzato della TSA validato come token HTTP; header riservati
+  (`Host`, `Content-Type`, `Authorization`, `Cookie`, `Sec-*`, `Proxy-*`…) rifiutati.
+- Avviso nelle opzioni se l'URL della TSA punta a una rete locale o privata.
+- Verifica della firma della marca temporale: impronta, `signingCertificate`, firma RSA/RSA-PSS/ECDSA
+  e catena fino alle radici di DigiCert, Sectigo e FreeTSA (incluse) o a CA aggiunte nelle opzioni.
+  Esito `verified`/`untrusted`/`invalid`/`unsupported` in popup, test del servizio e ricevuta.
+  La revoca dei certificati non è controllata.
+- Il rifiuto della TSA riporta il motivo inviato dal servizio (`statusString`, `failInfo`).
+- Timeout per il job di rilascio in CI.
+
+### Compatibilità browser
+
+- Istruzioni di installazione per Edge e Brave (stesso pacchetto di Chrome).
+- Il report indica il browser effettivo (Chrome, Edge, Brave, Opera) oltre allo user agent.
+- `tools/build.py` crea anche la cartella estratta in `dist/`, pronta da caricare.
 
 ### Compatibilità
 

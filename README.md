@@ -2,7 +2,7 @@
   <img src="icons/icon-128.png" width="96" height="96" alt="">
 </p>
 
-<h1 align="center">Full Page Screenshot</h1>
+<h1 align="center">Forensic Web Capture</h1>
 
 <p align="center">
   Estensione per Google Chrome che cattura l'<strong>intera pagina web</strong> in PDF o immagine
@@ -35,11 +35,23 @@ Ogni funzione si attiva o disattiva dal popup dell'estensione.
 
 ### Da una release
 
-1. Scarica l'ultimo `full-page-screenshot-x.y.z.zip` dalla pagina [Releases](../../releases).
-2. Estrai lo zip in una cartella che non cancellerai (Chrome legge i file da lì).
-3. Apri `chrome://extensions` e attiva la **Modalità sviluppatore** (in alto a destra).
-4. Clicca **Carica estensione non pacchettizzata** e seleziona la cartella estratta.
+1. Scarica l'ultimo `forensic-web-capture-x.y.z.zip` dalla pagina [Releases](../../releases).
+2. Estrai lo zip in una cartella che non cancellerai (il browser legge i file da lì).
+3. Apri la pagina delle estensioni e attiva la **Modalità sviluppatore**:
+
+   | Browser | Indirizzo | Interruttore |
+   |---------|-----------|--------------|
+   | Chrome  | `chrome://extensions` | *Modalità sviluppatore*, in alto a destra |
+   | Edge    | `edge://extensions`   | *Modalità sviluppatore*, nel pannello a sinistra |
+   | Brave   | `brave://extensions`  | *Modalità sviluppatore*, in alto a destra |
+
+4. Clicca **Carica estensione non pacchettizzata** (Edge: **Carica decompressa**) e seleziona
+   la cartella estratta.
 5. Fissa l'estensione nella barra degli strumenti (icona del puzzle → puntina).
+
+Lo stesso pacchetto funziona su tutti i browser basati su Chromium (Chrome, Edge, Brave,
+Opera, Vivaldi). Firefox non è supportato: non espone alle estensioni il Chrome DevTools
+Protocol su cui si basa la cattura.
 
 ### Dal codice sorgente
 
@@ -59,7 +71,7 @@ Clicca l'icona dell'estensione (o premi <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</
 larghezza, formato e funzioni, poi **Cattura pagina intera**. I file finiscono nella cartella
 Download; l’esito positivo viene mostrato solo dopo la conferma di completamento di Chrome; il popup mostra l'hash SHA-256 del file principale ed eventuali avvisi.
 
-Durante la cattura Chrome mostra la barra *"Full Page Screenshot ha avviato il debug di questo
+Durante la cattura Chrome mostra la barra *"Forensic Web Capture ha avviato il debug di questo
 browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e sparisce a fine cattura.
 
 ### Funzioni
@@ -106,11 +118,11 @@ Con tutte le funzioni attive, ogni acquisizione produce:
 | `<id>.pdf` | Copertina + screenshot integrale |
 | `<id>.mhtml` | Copia completa della pagina |
 | `<id>.html` | Pagina HTML che mostra il sorgente DOM come testo inerte, con CSP restrittiva |
-| `<id>.tsr` | Risposta RFC 3161 relativa al manifest (firma da verificare esternamente) |
+| `<id>.tsr` | Risposta RFC 3161 relativa al manifest (token firmato dalla TSA) |
 | `<id>.report.txt` | Report leggibile con dati, hash e istruzioni di verifica |
 | `<id>.report.json` | Lo stesso report in JSON |
 | `<id>.manifest.sha256` | Hash di screenshot, copie della pagina e report; è il file sottoposto a marcatura |
-| `<id>.timestamp.json` | Esito TSA, hash del manifest e stato esplicito `not-verified`, anche in caso di errore |
+| `<id>.timestamp.json` | Esito TSA, hash del manifest ed esito della verifica della firma (`verified`, `untrusted`, `invalid`, `unsupported`) con firmatario, catena e motivo, anche in caso di errore |
 | `SHA256SUMS.txt` | Hash di tutti gli altri file nello ZIP, inclusi report, manifest, token e ricevuta |
 
 `<id>` è `capture_<data>_<UUID>`: il titolo della pagina resta nei metadati e non entra nei
@@ -154,10 +166,34 @@ ogni file. Usare certificati TSA e CA ottenuti da una fonte fidata. Non usare au
 un certificato ricevuto nel pacchetto come radice fidata.
 
 L’estensione controlla struttura DER, algoritmo SHA-256, hash, nonce obbligatorio e policy
-richiesta. **Non verifica la firma CMS né la fiducia della catena certificati**: popup, test del
-servizio e ricevuta lo indicano esplicitamente. L’ora TSA non viene usata come riferimento
-certificato dall’estensione. Le acquisizioni precedenti alla 1.6.0 restano verificabili con
-il file principale come bersaglio, secondo le istruzioni del loro report.
+richiesta, poi **verifica la firma CMS e la catena dei certificati**:
+
+- l’impronta firmata (`messageDigest`) corrisponde al contenuto della marca;
+- il certificato indicato negli attributi firmati (`signingCertificate`, v1 o v2) è quello del firmatario;
+- la firma è valida (RSA PKCS#1 v1.5, RSA-PSS, ECDSA P-256/P-384/P-521 con SHA-256/384/512);
+- il certificato della TSA ha l’uso `timeStamping` ed era valido all’ora dichiarata;
+- la catena risale a una CA radice attendibile; ogni CA intermedia deve essere una CA
+  (`basicConstraints`, `keyUsage`, `pathLen`) valida all’ora dichiarata.
+
+Le radici incluse sono quelle dei servizi preimpostati (`lib/tsaroots.js`):
+DigiCert Trusted Root G4, Sectigo Public Time Stamping Root R46, USERTrust RSA Certification
+Authority e Free TSA Root CA. Per un altro servizio (ad esempio Aruba) si possono aggiungere
+le sue CA in formato PEM nelle opzioni, nel profilo del servizio.
+
+Esiti possibili, mostrati nel popup, nel test del servizio e nella ricevuta:
+
+| Esito | Significato |
+|-------|-------------|
+| `verified` | Firma valida e catena fino a una radice attendibile |
+| `untrusted` | Firma valida, ma la catena non arriva a una radice attendibile |
+| `invalid` | Firma, impronta o certificato non corrispondono: il token è conservato ma non va considerato affidabile |
+| `unsupported` | Algoritmo non gestito: verificare con OpenSSL |
+
+**La revoca dei certificati (CRL/OCSP) non viene controllata.** Per una verifica
+indipendente, o se serve anche la revoca, usare OpenSSL come indicato sopra. Il report
+viene creato prima della richiesta di marca, quindi indica solo la richiesta: l’esito è
+nella ricevuta `<id>.timestamp.json`. Le acquisizioni precedenti alla 1.6.0 restano
+verificabili con il file principale come bersaglio, secondo le istruzioni del loro report.
 
 ## Limiti e valore probatorio
 
@@ -227,7 +263,7 @@ manuale in Chrome resta necessario per pagine dinamiche, download e interfaccia.
 
 ```sh
 python tools/check.py        # sintassi + test, inclusa TSA OpenSSL locale
-python tools/build.py        # crea dist/full-page-screenshot-<versione>.zip
+python tools/build.py        # crea dist/forensic-web-capture-<versione>.zip
 python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 ```
 

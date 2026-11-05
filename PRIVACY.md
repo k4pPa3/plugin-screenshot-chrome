@@ -2,7 +2,7 @@
 
 *Ultimo aggiornamento: 5 novembre 2026*
 
-Full Page Screenshot è un'estensione per Google Chrome sviluppata da Andrea Martin.
+Forensic Web Capture è un'estensione per Google Chrome sviluppata da Andrea Martin.
 
 ## Dati raccolti
 

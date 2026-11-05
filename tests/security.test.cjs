@@ -15,7 +15,9 @@ test('HTML export contains only a trusted wrapper and inert, recoverable source'
   for (const source of samples) {
     const html = c.protectHtml(source);
     // Independent parser: verifies actual elements, not the escaping implementation.
-    const parsed = spawnSync('python3', ['-c', `import sys,json
+    // Su Windows "python3" è spesso l'alias del Microsoft Store: si usa il launcher "py".
+    const python = process.env.PYTHON || (process.platform === 'win32' ? 'py' : 'python3');
+    const parsed = spawnSync(python, ['-c', `import sys,json
 from html.parser import HTMLParser
 class P(HTMLParser):
  def __init__(self):
@@ -47,14 +49,15 @@ test('shell literals cannot execute page-title substitutions', async () => {
   assert.equal(c.powershellLiteral(title), "'$(printf INJECTED)`printf INJECTED` O''Brien'");
 });
 
-test('all locales label TSA response as unverified and provide new messages', async () => {
+test('all locales describe every signature check outcome and provide new messages', async () => {
   const c = await context();
   for (const locale of ['en', 'it', 'fr', 'es']) {
     c.setLanguage(locale);
-    for (const key of ['tsa.unverified', 'tsa.pendingReceipt', 'err.download']) {
+    for (const key of ['tsa.check.verified', 'tsa.check.untrusted', 'tsa.check.invalid', 'tsa.check.unsupported', 'tsa.pendingReceipt', 'err.download', 'options.tsa.caPem', 'options.tsa.caPem.invalid']) {
       assert.ok(c.eval(`I18N.${locale}[${JSON.stringify(key)}]`));
     }
     assert.notEqual(c.t('popup.tsaTime'), 'Date/time certified by the TSA');
-    assert.match(c.t('options.test.ok'), /NOT|NON|NO/);
+    assert.match(c.t('tsa.check.invalid'), /NOT|NON|NO/);
+    assert.match(c.t('tsa.check.verified'), /(Revocation|Revoca|Révocation|Revocación)/);
   }
 });

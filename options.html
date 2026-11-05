@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Full Page Screenshot</title>
+  <title>Forensic Web Capture</title>
   <link rel="stylesheet" href="ui.css">
   <style>
     body { padding: 32px 16px; }
@@ -76,6 +76,11 @@
       <span data-i18n="options.tsa.policy"></span>
       <input type="text" id="tsaPolicyOid" data-i18n-placeholder="options.tsa.policy.placeholder" spellcheck="false">
     </label>
+    <label class="field">
+      <span data-i18n="options.tsa.caPem"></span>
+      <textarea id="tsaCaPem" rows="4" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+    </label>
+    <p class="desc" data-i18n="options.tsa.caPem.desc"></p>
     <p class="desc" data-i18n="options.tsa.perService"></p>
     <p class="desc error" id="tsaWarning" hidden></p>
 
@@ -131,6 +136,10 @@
         <input type="text" id="subfolder" data-i18n-placeholder="options.advanced.subfolder.placeholder" spellcheck="false">
       </label>
     </div>
+    <label class="switch" style="margin-top: 12px">
+      <input type="checkbox" id="tlsCheck"><span class="track"></span>
+      <span class="text"><span data-i18n="options.advanced.tlsCheck"></span><br><span class="desc" data-i18n="options.advanced.tlsCheck.help"></span></span>
+    </label>
   </section>
 
   <div class="actions">
@@ -150,6 +159,8 @@
 <script src="lib/locales/es.js"></script>
 <script src="lib/common.js"></script>
 <script src="lib/tsa.js"></script>
+<script src="lib/tsaroots.js"></script>
+<script src="lib/tsaverify.js"></script>
 <script src="lib/vault.js"></script>
 <script src="options.js"></script>
 </body>

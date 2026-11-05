@@ -56,6 +56,31 @@ function timeOf(ms) {
   return new Date(ms).toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+// Connessione ispezionata da software locale: spiega cosa fare e lascia
+// scegliere tra ricontrollare (dopo aver disattivato la protezione) e procedere.
+function renderInterception(info) {
+  const box = document.createElement("div");
+  box.className = "tls-box";
+  const title = document.createElement("strong");
+  title.textContent = t(info.status === "likely" ? "popup.tls.title" : "popup.tls.titleSuspected",
+    { issuer: info.product || info.issuer || "?" });
+  const body = document.createElement("p");
+  body.textContent = t("popup.tls.body");
+  const actions = document.createElement("div");
+  actions.className = "tls-actions";
+  const retry = document.createElement("button");
+  retry.className = "primary";
+  retry.textContent = t("popup.tls.retry");
+  retry.addEventListener("click", () => startCapture(false));
+  const force = document.createElement("button");
+  force.className = "secondary";
+  force.textContent = t("popup.tls.override");
+  force.addEventListener("click", () => startCapture(true));
+  actions.append(retry, force);
+  box.append(title, body, actions);
+  resultEl.append(box);
+}
+
 // Mostra lo stato della cattura salvato dal service worker.
 function render(state) {
   resultEl.replaceChildren();
@@ -66,18 +91,23 @@ function render(state) {
     setStatus(t(settings?.features.network ? "popup.runningNetwork" : "popup.running"));
     return;
   }
-  if (state.status === "error") {
+  if (state.status === "interception") {
+    setStatus("");
+    renderInterception(state.interception || {});
+  } else if (state.status === "error") {
     setStatus(state.error, true);
   } else {
     setStatus(t("popup.saved", { width: state.width, height: state.height }));
     addHash(t("popup.hashOf", { file: state.filename }), state.hash);
     if (state.zipHash) addHash(t("popup.zipHash"), state.zipHash);
     if (state.genTime) addHash(t("popup.tsaTime"), state.genTime);
-    for (const w of state.warnings || []) {
-      const el = document.createElement("div");
-      el.className = "warn";
-      el.textContent = w;
-      resultEl.append(el);
+    for (const [cls, list] of [["note", state.notes], ["warn", state.warnings]]) {
+      for (const text of list || []) {
+        const el = document.createElement("div");
+        el.className = cls;
+        el.textContent = text;
+        resultEl.append(el);
+      }
     }
   }
   const last = document.createElement("div");
@@ -125,7 +155,9 @@ timestampSwitch.addEventListener("change", async (e) => {
   if (!granted) setStatus(t("popup.tsa.noPermission"), true);
 });
 
-button.addEventListener("click", async () => {
+button.addEventListener("click", () => startCapture(false));
+
+async function startCapture(override) {
   await persist();
 
   if (settings.features.timestamp && !settings.tsa.url) {
@@ -139,9 +171,9 @@ button.addEventListener("click", async () => {
 
   // L'esito arriva tramite storage.session (vedi render); la risposta serve
   // solo per gli errori immediati, come una cattura già in corso.
-  const res = await chrome.runtime.sendMessage({ type: "capture" });
+  const res = await chrome.runtime.sendMessage({ type: "capture", override });
   if (res?.busy) {
     setStatus(res.error, true);
     button.disabled = true;
   }
-});
+}
