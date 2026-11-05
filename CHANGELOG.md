@@ -4,6 +4,17 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.7.3] - 2026-11-05
+
+### Documentazione
+
+- Esplicitati i limiti accettati dell'estensione autonoma: sandbox e VM sono misure
+  esterne facoltative; i dati raccolti dal browser non attestano l'integrità dell'host.
+- Allineati README, modello di sicurezza e procedura operativa sulla verifica TSA,
+  sulle garanzie eIDAS, sull'isolamento e sui limiti dell'acquisizione.
+- Corrette le indicazioni sulle protezioni del computer e sugli IP osservati.
+- Nessuna nuova funzione di isolamento o virtualizzazione inclusa in questa versione.
+
 ## [1.7.2] - 2026-11-05
 
 ### Corretto
@@ -228,9 +239,9 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.7.3]: ../../releases/tag/v1.7.3
 [1.7.2]: ../../releases/tag/v1.7.2
 [1.7.1]: ../../releases/tag/v1.7.1
 [1.7.0]: ../../releases/tag/v1.7.0
 [1.6.0]: ../../releases/tag/v1.6.0
 [1.5.0]: ../../releases/tag/v1.5.0
-
