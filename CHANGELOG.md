@@ -4,7 +4,7 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
-## [Unreleased]
+## [1.7.2] - 2026-11-05
 
 ### Corretto
 
@@ -14,6 +14,13 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 - Registrazione HAR estesa fino al termine degli snapshot, incluso lo scorrimento;
   intervallo, timeout, limiti e richieste incomplete sono espliciti nel report e nell'HAR.
 - Limite di richieste applicato anche alle richieste ancora aperte, con conteggio degli scarti.
+
+### Aggiunto
+
+- Test dell'estensione in Chromium con fixture HTTP locali per redirect, scorrimento,
+  hash dei contenuti e download completati o interrotti.
+- Pubblicazione automatica al merge di una PR interna `release/<versione>` su `main`,
+  oltre alla pubblicazione tramite tag.
 
 ## [1.7.1] - 2026-11-05
 
@@ -221,6 +228,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.7.2]: ../../releases/tag/v1.7.2
 [1.7.1]: ../../releases/tag/v1.7.1
 [1.7.0]: ../../releases/tag/v1.7.0
 [1.6.0]: ../../releases/tag/v1.6.0
