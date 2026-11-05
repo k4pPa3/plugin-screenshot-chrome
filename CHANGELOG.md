@@ -4,6 +4,25 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.6.0] - Non rilasciata
+
+### Sicurezza e integrità
+
+- Nomi dei file basati su UUID e comandi di verifica con quoting esplicito.
+- HTML esportato come sorgente inerte, senza interpretazione del DOM acquisito.
+- Marca RFC 3161 sul manifest comprendente reperti e report; ricevuta TSA separata.
+  Il riepilogo finale include anche report, manifest, token e ricevuta.
+- Parser DER con controlli di lunghezza, struttura, algoritmo, nonce obbligatorio e policy.
+  Interfaccia e report distinguono ricezione della risposta dalla verifica esterna della firma.
+- Download confermati solo al completamento; errori, rinomine e timeout sono segnalati.
+- Suite di regressione e verifica con TSA OpenSSL locale, eseguite in CI e prima del rilascio.
+
+### Compatibilità
+
+- Report JSON `full-page-screenshot/report@2`; esito TSA in `<id>.timestamp.json`.
+- La verifica OpenSSL usa `<id>.manifest.sha256` come bersaglio per le nuove acquisizioni.
+- Il file HTML mostra il codice sorgente come testo; per la copia della pagina resta l’MHTML.
+
 ## [1.5.0] - 2026-11-04
 
 ### Aggiunto
@@ -118,3 +137,4 @@ Prima versione completa, non pubblicata.
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
 [1.5.0]: ../../releases/tag/v1.5.0
+

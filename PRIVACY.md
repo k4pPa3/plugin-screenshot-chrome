@@ -1,6 +1,6 @@
 # Informativa sulla privacy
 
-*Ultimo aggiornamento: 4 novembre 2026*
+*Ultimo aggiornamento: 5 novembre 2026*
 
 Full Page Screenshot è un'estensione per Google Chrome sviluppata da Andrea Martin.
 
@@ -27,10 +27,11 @@ all'autore.
 ## Servizi esterni
 
 Solo se attivi la **marca temporale RFC 3161**, l'estensione invia al servizio da te configurato
-(TSA) una richiesta che contiene **l'hash SHA-256** del file catturato e un numero casuale (nonce),
+(TSA) una richiesta che contiene **l'hash SHA-256** del manifest di acquisizione (reperti e report) e un numero casuale (nonce),
 insieme alle credenziali che hai inserito. Non vengono inviati il file, l'URL o il contenuto della
 pagina. Il trattamento di questa richiesta è regolato dall'informativa del servizio scelto.
 
 ## Contatti
 
 Per domande apri una segnalazione nella sezione *Issues* del repository del progetto.
+

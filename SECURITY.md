@@ -26,15 +26,22 @@ fornisce e il servizio di marca temporale. In particolare:
   dello screenshot; se differiscono da quelli iniziali viene segnalato.
 - **Dimensioni**: l'altezza catturata ha un limite configurabile, per evitare che una pagina
   infinita esaurisca la memoria.
-- **HTML salvato**: in testa al file viene inserita una Content-Security-Policy che impedisce
-  l'esecuzione di script e il caricamento di risorse esterne quando lo si apre.
+- **HTML salvato**: il DOM viene codificato come testo inerte in un contenitore HTML controllato
+  dall’estensione con CSP restrittiva. Nessuna parte del DOM viene interpretata come markup.
+  Questa garanzia riguarda il sorgente HTML, non l’MHTML.
 - **Dati sensibili nel report**: i valori dei cookie (`Set-Cookie`) e le password nell'URL
   vengono rimossi; caratteri di controllo e di direzione del testo vengono eliminati da nomi
   di file e report.
 - **Marca temporale**: credenziali e header vengono inviati solo via `https`, senza redirect,
-  senza cookie, con timeout e dimensione massima della risposta. Hash e nonce della risposta
-  vengono confrontati con la richiesta. La firma della TSA va verificata con OpenSSL (vedi
-  README).
+  senza cookie, con timeout e dimensione massima della risposta. Struttura DER, algoritmo, hash, nonce obbligatorio e policy della risposta
+  vengono controllati. Firma e fiducia dei certificati NON sono verificate dall’estensione:
+  lo stato è `not-verified` e la verifica va eseguita con OpenSSL (vedi README).
+- **Integrità del pacchetto**: la marca riguarda un manifest di reperti e report immutabili.
+  L’esito TSA resta in una ricevuta separata; il riepilogo finale include tutti gli altri file.
+- **Nomi e comandi**: nomi tecnici con UUID, indipendenti dal titolo della pagina; quoting
+  esplicito nei comandi di verifica.
+- **Download**: esito positivo solo dopo lo stato `complete`; interruzioni, rimozioni,
+  rinomina inattesa e timeout generano errore. Un errore può lasciare file parzialmente salvati.
 - **Messaggi**: il service worker accetta comandi solo dal popup dell'estensione; non ci sono
   content script né risorse accessibili dalle pagine web.
 - **Pagine dell'estensione**: Content-Security-Policy restrittiva (`script-src 'self'`,
@@ -64,3 +71,4 @@ fornisce e il servizio di marca temporale. In particolare:
   per questo il progetto non ha dipendenze né codice caricato da remoto, le pagine hanno una
   CSP restrittiva e le release sono create da GitHub Actions a partire dai tag, con l'hash
   SHA-256 del pacchetto pubblicato accanto.
+
