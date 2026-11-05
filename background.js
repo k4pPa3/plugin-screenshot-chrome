@@ -118,17 +118,19 @@ function isoFromSeconds(s) {
 
 // Ricarica la pagina con il debugger attivo per registrare risposta HTTP,
 // indirizzo IP del server, catena di redirect e certificato TLS.
-async function collectNetworkInfo(target, settings) {
+async function collectNetworkInfo(target, settings, lifecycle = null) {
   const { frameTree } = await send(target, "Page.getFrameTree");
   const mainFrame = frameTree.frame.id;
   const net = { redirects: [], document: null, certificate: null };
   const har = settings.features.har ? createHarRecorder() : null;
 
+  let loadCompleted = false, loadTimedOut = false;
+  const startedAt = new Date().toISOString();
   let onLoad;
   const loaded = new Promise((r) => { onLoad = r; });
   const listener = (source, method, params) => {
     if (source.tabId !== target.tabId) return;
-    if (method === "Page.loadEventFired") onLoad();
+    if (method === "Page.loadEventFired") { loadCompleted = true; onLoad(); }
     if (har && method.startsWith("Network.")) har.onEvent(method, params);
     if (params?.type !== "Document" || params.frameId !== mainFrame) return;
     if (method === "Network.requestWillBeSent" && params.redirectResponse) {
@@ -167,25 +169,17 @@ async function collectNetworkInfo(target, settings) {
     }
   };
 
-  chrome.debugger.onEvent.addListener(listener);
-  try {
-    // Buffer più ampi: i contenuti servono ancora dopo il caricamento.
-    await send(target, "Network.enable", har ? { maxTotalBufferSize: 200 * 1024 * 1024, maxResourceBufferSize: 20 * 1024 * 1024 } : {});
-    await send(target, "Network.setBypassServiceWorker", { bypass: true }).catch(() => {});
-    await send(target, "Page.reload", { ignoreCache: true });
-    await Promise.race([loaded, sleep(settings.advanced.loadTimeout)]);
-    await sleep(1500);
-  } finally {
-    chrome.debugger.onEvent.removeListener(listener);
-  }
-
   // Contenuti delle risposte: impronta di ciascuno e, entro i limiti, copia
   // nell'HAR. Vanno letti prima di staccare il debugger.
-  if (har) {
+  const finishHar = async () => {
+    chrome.debugger.onEvent.removeListener(listener);
+    if (!har) return;
+    const endedAt = new Date().toISOString();
     let total = 0;
     const entries = har.entries();
     for (const e of entries) {
-      if (!e.finished || e.failed) continue;
+      if (e.redirect) { e.bodyOmitted = "redirect"; continue; }
+      if (!e.finished || e.failed) { e.bodyOmitted = e.failed ? "failed" : "pending"; continue; }
       try {
         const body = await send(target, "Network.getResponseBody", { requestId: e.requestId });
         const bytes = harBodyBytes(body);
@@ -199,12 +193,37 @@ async function collectNetworkInfo(target, settings) {
       }
     }
     net.harEntries = entries;
+    net.harCollection = { startedAt, endedAt, loadCompleted, loadTimedOut, ...har.summary(),
+      pending: entries.filter((e) => !e.finished && !e.failed).length,
+      bodiesOmitted: entries.filter((e) => e.bodyOmitted).length,
+      bodyBytesStored: total, maxEntries: HAR_MAX_ENTRIES,
+      maxBodyBytes: HAR_MAX_BODY_EACH, maxTotalBodyBytes: HAR_MAX_BODY_TOTAL };
+  };
+
+
+  chrome.debugger.onEvent.addListener(listener);
+  let recording = false;
+  try {
+    // Buffer più ampi: i contenuti servono ancora dopo il caricamento.
+    await send(target, "Network.enable", har ? { maxTotalBufferSize: 200 * 1024 * 1024, maxResourceBufferSize: 20 * 1024 * 1024 } : {});
+    await send(target, "Network.setBypassServiceWorker", { bypass: true }).catch(() => {});
+    await send(target, "Page.reload", { ignoreCache: true });
+    await Promise.race([loaded, sleep(settings.advanced.loadTimeout)]);
+    loadTimedOut = !loadCompleted;
+    await sleep(1500);
+    recording = true;
+  } finally {
+    if (!recording || !lifecycle || !har) chrome.debugger.onEvent.removeListener(listener);
   }
 
   // Confronta l'orologio del PC con l'header Date del server (precisione 1 s).
   // Se la risposta arriva dalla cache di una CDN, Date è l'ora in cui l'ha
   // generata l'origine e Age dice da quanti secondi è in cache: l'ora del
   // server al momento della risposta è Date + Age.
+  if (lifecycle && har) {
+    lifecycle.finish = finishHar;
+    lifecycle.stop = () => chrome.debugger.onEvent.removeListener(listener);
+  }
   const headers = net.document?.headers || {};
   const header = (name) => Object.entries(headers).find(([k]) => k.toLowerCase() === name)?.[1];
   const dateTime = Date.parse(header("date") || "");
@@ -235,6 +254,7 @@ async function collectNetworkInfo(target, settings) {
   if (net.document?.security) {
     net.tlsInterception = detectTlsInterception(net.document.security, net.document.receivedAt);
   }
+  if (!lifecycle || !har) await finishHar();
   return net;
 }
 
@@ -273,19 +293,14 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
   log("debugger.attach", { url: redactUrl(tab.url) });
 
   const result = { network: null, networkError: null };
+  const networkLifecycle = {};
   try {
     await send(target, "Page.enable");
 
     if (features.network) {
       try {
         log("network.reload");
-        result.network = await collectNetworkInfo(target, settings);
-        if (result.network.harEntries) {
-          result.harEntries = result.network.harEntries;
-          delete result.network.harEntries;
-          log("network.har", { requests: result.harEntries.length,
-            hashed: result.harEntries.filter((e) => e.sha256).length });
-        }
+        result.network = await collectNetworkInfo(target, settings, networkLifecycle);
         const d = result.network.document;
         log("network.response", d ? { status: d.status, ip: d.remoteIPAddress, redirects: result.network.redirects.length } : { document: null });
       } catch (err) {
@@ -391,7 +406,15 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       result.html = new TextEncoder().encode(protectHtml(String(html)));
       log("snapshot.html", { bytes: result.html.length });
     }
+    if (networkLifecycle.finish) {
+      await networkLifecycle.finish();
+      result.harEntries = result.network.harEntries;
+      delete result.network.harEntries;
+      log("network.har", { ...result.network.harCollection,
+        hashed: result.harEntries.filter((e) => e.sha256).length });
+    }
   } finally {
+    networkLifecycle.stop?.();
     try {
       await send(target, "Emulation.clearDeviceMetricsOverride");
     } catch (_) {}
@@ -418,9 +441,11 @@ const COVER_MAX_VALUE = 400;
 
 function networkRows(net, error, compact = false) {
   if (error) return [[t("row.error"), error]];
-  if (!net?.document) return [[t("row.status"), t("net.noDocument")]];
+  const harRows = net?.harCollection ? [[t("row.harCollection"), t("har.collection", net.harCollection)]] : [];
+  if (!net?.document) return [[t("row.status"), t("net.noDocument")], ...harRows];
   const d = net.document;
   const rows = [
+    ...harRows,
     [t("row.finalUrl"), d.url],
     [t("row.httpResponse"), `${d.status} ${d.statusText || ""}`.trim()],
     [t("row.protocol"), d.protocol || ""],
@@ -821,7 +846,8 @@ async function run(tab, options = {}) {
   if (shot.html) related.push(await fileEntry(`${base}.html`, "html", t("role.html"), shot.html, "text/html;charset=utf-8"));
   if (shot.harEntries) {
     const har = buildHar(shot.harEntries, { creator: manifest.name, version: manifest.version,
-      pageTitle: acq.title, startedAt: shot.date.toISOString(), redacted: t("value.redacted") });
+      pageTitle: acq.title, collection: shot.network?.harCollection,
+      startedAt: shot.network?.harCollection?.startedAt || shot.date.toISOString(), redacted: t("value.redacted") });
     related.push(await fileEntry(`${base}.har`, "har", t("role.har"), new TextEncoder().encode(JSON.stringify(har)), "application/json"));
   }
 
@@ -876,6 +902,10 @@ async function run(tab, options = {}) {
     receipt: `${base}.timestamp.json`
   };
   if (shot.networkError) warnings.push(msg("warn.network", { error: shot.networkError }));
+  const harCollection = shot.network?.harCollection;
+  if (harCollection && (harCollection.pending || harCollection.droppedRequests || harCollection.loadTimedOut)) {
+    warnings.push(msg("warn.harIncomplete", harCollection));
+  }
   const tls = shot.network?.tlsInterception;
   if (tls && tls.status !== "none") {
     warnings.push(msg("warn.tlsInterception", { issuer: tls.product || tls.issuer }));
@@ -1004,9 +1034,9 @@ function isPopupSender(sender) {
   } catch (_) { return false; }
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!isPopupSender(sender)) return;
-  if (msg?.type !== "capture") return;
+  if (message?.type !== "capture") return;
 
   if (busy) {
     sendResponse({ ok: false, busy: true, error: t("err.busy") });
@@ -1026,7 +1056,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // Ricorda tra una cattura e l'altra che è stata rilevata un'intercettazione,
       // per ricordare di riattivare la protezione a cattura pulita.
       const { tlsSeen } = await chrome.storage.session.get("tlsSeen");
-      const result = await run(tab, { override: msg.override === true, afterInterception: !!tlsSeen });
+      const result = await run(tab, { override: message.override === true, afterInterception: !!tlsSeen });
       if (tlsSeen) await chrome.storage.session.remove("tlsSeen");
       await setCaptureState({ status: "done", title: tab.title || "", url: tab.url || "", ...result });
       setBadge(result.warnings.length ? "!" : "OK", result.warnings.length ? "#e37400" : "#188038");

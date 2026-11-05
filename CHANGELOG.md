@@ -4,6 +4,17 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [Unreleased]
+
+### Corretto
+
+- Gestione degli errori del popup: eliminato il conflitto fra messaggio ricevuto e
+  funzione di traduzione che interrompeva la risposta e l'aggiornamento dello stato.
+- HAR: i corpi dei redirect non vengono più confusi con la risposta finale.
+- Registrazione HAR estesa fino al termine degli snapshot, incluso lo scorrimento;
+  intervallo, timeout, limiti e richieste incomplete sono espliciti nel report e nell'HAR.
+- Limite di richieste applicato anche alle richieste ancora aperte, con conteggio degli scarti.
+
 ## [1.7.1] - 2026-11-05
 
 ### Aggiunto
