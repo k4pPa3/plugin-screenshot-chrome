@@ -33,12 +33,21 @@ all'autore.
 
 ## Servizi esterni
 
-Solo se attivi la **marca temporale RFC 3161**, l'estensione invia al servizio da te configurato
+Se attivi la **marca temporale RFC 3161**, l'estensione invia al servizio da te configurato
 (TSA) una richiesta che contiene **l'hash SHA-256** del manifest di acquisizione (reperti e report) e un numero casuale (nonce),
 insieme alle credenziali che hai inserito. Non vengono inviati il file, l'URL o il contenuto della
 pagina. Il trattamento di questa richiesta è regolato dall'informativa del servizio scelto.
 
+## Supporto volontario e invito Satispay
+
+Le Opzioni mostrano il nome utente pubblico dell'autore e un invito Satispay facoltativo.
+I pulsanti di copia scrivono negli appunti solo il nome utente o il codice invito mostrato.
+Il riquadro non carica risorse esterne e non misura visualizzazioni, clic o pagamenti.
+Solo scegliendo *Apri link invito* si apre una pagina esterna Satispay, che riceve la
+normale richiesta di navigazione con il codice di invito; non vengono aggiunti dati
+di acquisizione, credenziali TSA o impostazioni del plugin. La pagina esterna è regolata
+dall'informativa Satispay. Il programma non riceve informazioni su registrazioni o pagamenti.
+
 ## Contatti
 
 Per domande apri una segnalazione nella sezione *Issues* del repository del progetto.
-

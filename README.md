@@ -344,8 +344,11 @@ Modello di sicurezza, rischi residui e come segnalare una vulnerabilità in [SEC
 
 ## Privacy
 
-L'estensione non raccoglie dati e non contatta alcun server, con un'unica eccezione: se la marca
-temporale è attiva, invia al servizio scelto **solo l’hash SHA-256** del manifest, mai i file né l’URL.
+L'estensione non raccoglie dati e non usa server propri. Se la marca temporale è attiva,
+invia al servizio scelto **l’hash SHA-256** del manifest, mai i file né l’URL della pagina.
+Nelle Opzioni è presente un riquadro di supporto volontario con nome utente Satispay e
+un invito separato: il link apre Satispay solo su scelta dell'utente, senza dati di acquisizione
+né tracciamento da parte dell'estensione.
 Dettagli in [PRIVACY.md](PRIVACY.md).
 
 ## Sviluppo
@@ -389,8 +392,8 @@ python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 poi crea e invia un tag con la stessa versione. GitHub Actions crea il pacchetto e la release.
 
 ```sh
-git tag v1.7.3
-git push origin v1.7.3
+git tag v1.7.5
+git push origin v1.7.5
 ```
 
 ## Licenza

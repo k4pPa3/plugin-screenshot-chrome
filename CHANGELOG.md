@@ -4,6 +4,16 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.7.5] - 2026-11-05
+
+### Aggiunto
+
+- Riquadro discreto nelle Opzioni per sostenere volontariamente lo sviluppo tramite
+  nome utente Satispay, con copia del nome utente e suggerimento di 1 € o importo libero.
+- Invito Satispay separato e richiudibile, con copia del codice promozionale e link esterno.
+- Testi in italiano, inglese, francese e spagnolo; nessuna nuova autorizzazione, richiesta
+  automatica a Satispay o tracciamento. Informativa aggiornata.
+
 ## [1.7.3] - 2026-11-05
 
 ### Documentazione
@@ -239,6 +249,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.7.5]: ../../releases/tag/v1.7.5
 [1.7.3]: ../../releases/tag/v1.7.3
 [1.7.2]: ../../releases/tag/v1.7.2
 [1.7.1]: ../../releases/tag/v1.7.1

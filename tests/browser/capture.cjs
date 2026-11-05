@@ -92,6 +92,46 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
       finally { chrome.downloads.download = original; chrome.downloads.onChanged.removeListener(changed); }
     }, base);
     assert.match(interrupted, /Download not completed/);
+
+    // The support panel stays inside Options and never contacts Satispay on load.
+    const options = await browser.newPage();
+    const externalRequests = [];
+    options.on('request', request => {
+      if (/^https?:/.test(request.url())) externalRequests.push(request.url());
+    });
+    const extensionId = new URL(worker.url()).host;
+    await options.goto(`chrome-extension://${extensionId}/options.html`);
+    await options.locator('#language').selectOption('it');
+    await options.bringToFront();
+    const card = options.locator('.support-card');
+    assert.equal(await card.locator('#supportUsername').textContent(), '@martinandrea86');
+    assert.equal(await card.locator('details').getAttribute('open'), null);
+    assert.equal(await options.locator('#supportInviteLink').getAttribute('href'),
+      'https://web.satispay.com/promocode/69e1c16a-a641-40be-b622-657aa3e26da7');
+    assert.equal(await options.locator('#supportInviteLink').getAttribute('rel'), 'noopener noreferrer');
+    await options.locator('#copySupportUsername').click();
+    await options.getByRole('status').filter({ hasText: 'Nome utente copiato.' }).waitFor();
+    await card.locator('summary').click();
+    assert.equal(await options.locator('#supportPromoCode').textContent(), 'andreamartin8');
+    await options.locator('#copySupportPromo').click();
+    await options.getByRole('status').filter({ hasText: 'Codice invito copiato.' }).waitFor();
+    // Clipboard denial leaves a usable, selectable identifier.
+    await options.evaluate(() => {
+      Object.defineProperty(navigator.clipboard, 'writeText', {
+        configurable: true, value: async () => { throw new Error('Clipboard denied'); }
+      });
+    });
+    await options.locator('#copySupportUsername').click();
+    await options.getByRole('status').filter({ hasText: 'Copia non disponibile' }).waitFor();
+    for (const language of ['en', 'fr', 'es']) {
+      await options.locator('#language').selectOption(language);
+      assert.ok((await options.locator('#supportHeading').textContent()).length > 0);
+    }
+    await options.setViewportSize({ width: 375, height: 800 });
+    assert.ok(await card.evaluate(el => el.getBoundingClientRect().right <= window.innerWidth));
+    assert.deepEqual(externalRequests, []);
+    t.diagnostic('Options: public username, separate referral, clipboard success/denial, translations and mobile layout verified');
+
   } finally {
     if (browser) await browser.close();
     server.closeAllConnections();
