@@ -130,7 +130,7 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
         await options.locator('#language').selectOption(language);
         await options.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
         await options.screenshot({ path: path.join(output, `options-${language}.png`) });
-        await options.locator('#custodyOperator').scrollIntoViewIfNeeded();
+        await options.locator('#custodyOperator').evaluate(el => el.closest('section').scrollIntoView({ block: 'start' }));
         await options.screenshot({ path: path.join(output, `custody-${language}.png`) });
       }
     }
