@@ -54,20 +54,21 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     const worker = browser.serviceWorkers().find(isExtension) || await browser.waitForEvent('serviceworker', { predicate: isExtension });
     let ready = false;
     for (let i = 0; i < 100; i++) {
-      ready = await worker.evaluate(() => typeof capture === 'function' && typeof DEFAULT_SETTINGS !== 'undefined');
+      ready = await worker.evaluate(() => typeof capture === 'function' && typeof getSettings === 'function');
       if (ready) break;
       await delay(100);
     }
-    assert.ok(ready, 'Extension worker must finish loading its scripts');
+    assert.ok(ready, 'Extension worker must finish loading its scripts: ' + JSON.stringify(await worker.evaluate(() => ({ url: location.href, capture: typeof capture, settings: typeof getSettings }))));
     const page = await browser.newPage();
     await page.goto(`${base}/redirect`);
     // Keep a redirect as the reload target to exercise requestId reuse.
     await page.evaluate(() => history.replaceState(null, '', '/redirect'));
     const shot = await worker.evaluate(async base => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const settings = { ...DEFAULT_SETTINGS, format: 'png', features: {
-        ...DEFAULT_SETTINGS.features, network: true, har: true, autoScroll: true
-      }, advanced: { ...DEFAULT_SETTINGS.advanced, loadTimeout: 4000, settleDelay: 50 } };
+      const defaults = await getSettings();
+      const settings = { ...defaults, format: 'png', features: {
+        ...defaults.features, network: true, har: true, autoScroll: true
+      }, advanced: { ...defaults.advanced, loadTimeout: 4000, settleDelay: 50 } };
       const shot = await capture(tab, settings);
       return { entries: shot.harEntries, collection: shot.network.harCollection, imageSize: shot.image.length };
     }, base);
