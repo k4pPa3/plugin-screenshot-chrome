@@ -3,30 +3,48 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    branches: [main]
+    types: [closed]
 
-# Nessun permesso di default; il job chiede solo quello che gli serve.
 permissions: {}
 
 jobs:
   release:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.pull_request.merged == true &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.event.pull_request.head.ref, 'release/'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      # Azione fissata a un commit preciso (v7.0.1) per evitare che un tag
-      # spostato introduca codice diverso; Dependabot la tiene aggiornata.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
-      - name: Controlla che il tag corrisponda alla versione del manifest
+      - name: Verifica la versione da pubblicare
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
-          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "Il tag $GITHUB_REF_NAME non corrisponde alla versione v$VERSION di manifest.json"
+          if [ "$EVENT_NAME" = "push" ]; then
+            EXPECTED="v$VERSION"
+            ACTUAL="$GITHUB_REF_NAME"
+          else
+            EXPECTED="release/$VERSION"
+            ACTUAL="$RELEASE_BRANCH"
+          fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Il riferimento $ACTUAL non corrisponde a $EXPECTED"
             exit 1
           fi
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Controlla sintassi e test di regressione
         run: python3 tools/check.py
@@ -40,5 +58,6 @@ jobs:
       - name: Pubblica la release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt dist/code-fingerprint-*.txt --title "$GITHUB_REF_NAME" --generate-notes
-
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+        run: gh release create "$RELEASE_TAG" dist/*.zip dist/SHA256SUMS.txt dist/code-fingerprint-*.txt --target "$RELEASE_SHA" --title "$RELEASE_TAG" --generate-notes

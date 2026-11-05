@@ -351,8 +351,8 @@ python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 poi crea e invia un tag con la stessa versione. GitHub Actions crea il pacchetto e la release.
 
 ```sh
-git tag v1.7.1
-git push origin v1.7.1
+git tag v1.7.2
+git push origin v1.7.2
 ```
 
 ## Licenza
@@ -366,3 +366,8 @@ git push origin v1.7.1
 eseguono una prova dell'estensione in Chromium su un server HTTP locale: redirect,
 richieste generate dallo scorrimento e download completati o interrotti. Le dipendenze
 Node servono solo al collaudo e non vengono incluse nel pacchetto dell'estensione.
+
+La release può essere pubblicata anche tramite una PR interna dal branch
+`release/<versione>` verso `main`: aggiornare `manifest.json` e changelog,
+attendere la CI e unire la PR. Il workflow verifica che la versione nel nome del
+branch coincida con il manifest, crea il tag sul commit di merge e pubblica gli artefatti.
