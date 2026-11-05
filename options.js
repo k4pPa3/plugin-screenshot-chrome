@@ -23,6 +23,7 @@ let locked = false;
 function translatePage() {
   applyI18n();
   document.title = t("options.title");
+  $("supportStatus").textContent = "";
   const selected = presetEl.value;
   presetEl.replaceChildren(...Object.keys(TSA_PRESETS).map((key) => new Option(t(`preset.${key}`), key)));
   if (selected) presetEl.value = selected;
@@ -326,6 +327,21 @@ $("testTsa").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+// Copy only the fixed public identifiers displayed in this panel. No account,
+ // payment or acquisition data is sent by the extension.
+async function copySupportIdentifier(elementId, successKey) {
+  try {
+    await navigator.clipboard.writeText($(elementId).textContent);
+    show($("supportStatus"), t(successKey), "ok");
+  } catch (_) {
+    show($("supportStatus"), t("options.support.copyManual"), "");
+  }
+}
+$("copySupportUsername").addEventListener("click", () =>
+  copySupportIdentifier("supportUsername", "options.support.usernameCopied"));
+$("copySupportPromo").addEventListener("click", () =>
+  copySupportIdentifier("supportPromoCode", "options.support.promoCopied"));
 
 const manifest = chrome.runtime.getManifest();
 $("version").textContent = `${manifest.name} ${manifest.version}`;
