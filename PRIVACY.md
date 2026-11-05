@@ -1,61 +1,135 @@
-# Informativa sulla privacy
+# Informativa sulla privacy — Forensic Web Capture
 
-*Ultimo aggiornamento: 5 novembre 2026*
+*Ultimo aggiornamento: 5 novembre 2026 — funzionalità verificate sulla versione 1.7.6*
 
-Forensic Web Capture è un'estensione per Google Chrome sviluppata da Andrea Martin.
+## Ambito e sviluppatore
 
-## Dati raccolti
+Forensic Web Capture è un'estensione per Google Chrome sviluppata da **Andrea Martin**.
+Serve a creare, su richiesta dell'utente, acquisizioni documentate delle pagine web,
+con file salvati sul suo computer e marca temporale RFC 3161 facoltativa.
 
-L'estensione **tratta dati sul dispositivo dell'utente** per creare le acquisizioni.
-L'autore non riceve le acquisizioni e non usa analytics, cookie di tracciamento o server
-propri. Non vende i dati trattati. L'elaborazione locale può includere dati personali
-e sensibili presenti nelle pagine o inseriti dall'operatore, come descritto di seguito.
+**Lo sviluppatore non riceve le acquisizioni, le impostazioni o le credenziali.**
+L'estensione non usa server dello sviluppatore, account propri, analytics, telemetria
+di utilizzo o sistemi pubblicitari. Non vende i dati trattati.
 
-## Dati elaborati sul tuo dispositivo
+L'estensione legge ed elabora dati sul dispositivo per svolgere queste funzioni:
+il fatto che i dati restino locali non significa che non vengano trattati.
 
-Quando avvii una cattura, l'estensione legge la pagina della scheda attiva (aspetto, contenuto,
-URL, titolo e, se attivi la funzione *Dati di rete*, la risposta HTTP e il certificato del sito).
-Questi dati servono solo a creare i file di acquisizione, che vengono salvati nella cartella
-Download del tuo computer e non vengono inviati all'autore. Il contenuto del sito può
-comprendere comunicazioni, informazioni sanitarie o finanziarie e dati di autenticazione,
-a seconda della pagina scelta. Le intestazioni HAR di autorizzazione e cookie sono
-oscurate, ma il contenuto di screenshot, HTML, MHTML e risposte può comunque includere
-dati sensibili o token: non viene effettuata una bonifica generale delle acquisizioni.
+## Quali dati vengono trattati e perché
 
-Con il **registro HAR** l'acquisizione contiene anche le risorse caricate dalla pagina (con
-cookie e header di autorizzazione oscurati). Se attivi le relative opzioni, il report include
-le ultime pagine aperte nella scheda e l'elenco delle altre estensioni installate: per
-quest'ultimo l'estensione chiede il permesso facoltativo di gestione delle estensioni, usato
-solo per leggerne nome, versione e permessi. I dati della catena di custodia (operatore,
-organizzazione, caso, note) che inserisci restano nelle impostazioni locali e nei report.
+| Dati | Quando e per quale scopo | Destinazione |
+|---|---|---|
+| Contenuti dei siti web | Quando avvii un'acquisizione: aspetto della pagina e, secondo le opzioni abilitate, HTML, MHTML e contenuti delle risposte di rete. Servono a documentare la pagina scelta. | File di acquisizione sul tuo computer. |
+| URL, titoli e navigazione | URL e titolo della pagina acquisita; redirect se rilevati dai dati di rete. Se abiliti la cronologia della scheda, fino a dieci voci, compresa quella corrente, con URL, titolo e tipo di navigazione. | Report e file locali; URL e titolo dell'ultima acquisizione anche nello stato temporaneo dell'estensione. |
+| Dati identificativi inseriti dall'operatore | Operatore, organizzazione, riferimento del caso e note, se compilati. Servono a descrivere chi ha eseguito l'acquisizione e il relativo contesto. | Impostazioni locali e report. |
+| Dati di autenticazione TSA | Nome utente, password o header personalizzato configurati per il servizio di marca temporale. Servono ad autenticare la richiesta quando il servizio lo richiede. | Impostazioni o memoria di sessione, come precisato sotto; credenziali inviate al servizio TSA selezionato soltanto tramite HTTPS. |
+| Attività di rete della pagina | Se abiliti i dati di rete e il registro HAR: richieste e risposte, URL, metodi, stato HTTP, intestazioni, tempi, redirect e contenuti recuperabili entro i limiti previsti. Il monitoraggio riguarda l'acquisizione richiesta. | Report e HAR locali. |
+| Ambiente tecnico | Data e ora, fuso orario configurato, browser e versione, user agent, dimensioni dell'acquisizione e impronta del codice dell'estensione. Se abiliti l'inventario e concedi il permesso facoltativo, identificativi, nomi, versioni, tipo di installazione e indicatori dei permessi delle altre estensioni attive. | Report locali, per documentare l'ambiente di acquisizione. |
+| Informazioni sul server | Con i dati di rete: indirizzi IP e porte dei server remoti e informazioni HTTP/TLS disponibili, compreso il certificato del sito. | Report e HAR locali. Gli IP dei server non sono una misura della tua posizione. |
 
-## Impostazioni
+Non viene richiesto l'accesso alla posizione GPS né viene effettuata una ricerca della
+posizione del dispositivo. Non vengono registrati tasti premuti, movimenti del mouse o
+clic per finalità di analisi dell'utilizzo. L'estensione non monitora continuativamente
+la navigazione: l'acquisizione viene avviata dall'utente nella scheda scelta.
 
-Le impostazioni sono salvate nella memoria locale dell'estensione (`chrome.storage.local`) su
-questo browser. Le credenziali del servizio di marca temporale non vengono mai salvate in chiaro:
-restano in memoria fino alla chiusura del browser oppure, se lo scegli, vengono salvate cifrate
-con una password di protezione che non viene memorizzata. Nulla viene sincronizzato o inviato
-all'autore.
+### Dati già presenti nella pagina
 
-## Servizi esterni
+La pagina che scegli può contenere dati personali tuoi o di altre persone, email o
+conversazioni, informazioni sanitarie, finanziarie o di autenticazione. Questi dati
+possono essere conservati nei file acquisiti come parte del contenuto della pagina;
+l'estensione non li ricerca per creare profili o svolgere analisi commerciali.
 
-Se attivi la **marca temporale RFC 3161**, l'estensione invia al servizio da te configurato
-(TSA) una richiesta che contiene **l'hash SHA-256** del manifest di acquisizione (reperti e report) e un numero casuale (nonce),
-insieme alle credenziali che hai inserito. Non vengono inviati il file, l'URL o il contenuto della
-pagina. Come per qualsiasi connessione al servizio, il fornitore TSA può osservare
-l'indirizzo IP e i metadati tecnici della richiesta. L'invio può avvenire via HTTP solo
-per servizi senza credenziali; l'estensione rifiuta l'invio di credenziali via HTTP.
-Per il servizio scelto preferire un endpoint HTTPS. Il trattamento di questa richiesta è regolato dall'informativa del servizio scelto.
+Nel registro HAR sono oscurati i valori degli header Cookie, Set-Cookie,
+Authorization e Proxy-Authorization. Questo **non equivale a una bonifica generale**:
+URL e relativi parametri, altri header, screenshot, HTML, MHTML e corpi delle risposte
+possono ancora contenere dati personali, segreti o token. Verifica i file prima di
+condividerli. Per acquisire pagine pubbliche puoi usare un profilo dedicato o una
+finestra in incognito, se hai autorizzato l'estensione a funzionare in tale modalità.
+
+## Dove e per quanto tempo restano i dati
+
+- **File acquisiti:** sono salvati tramite il browser nella cartella Download o nella
+  destinazione scelta, eventualmente nella sottocartella configurata. Restano finché
+  li elimini tu; l'estensione non applica una scadenza né li cifra automaticamente.
+  Un file ZIP prodotto dall'estensione non è un archivio cifrato.
+- **Impostazioni:** preferenze, dati della catena di custodia, URL TSA, nome utente e
+  configurazioni dei servizi restano in chrome.storage.local, senza sincronizzazione
+  tramite chrome.storage.sync, finché li modifichi, li cancelli o rimuovi l'estensione.
+  Il nome utente TSA e le impostazioni non sono protetti dal vault delle password.
+- **Password e valore dell'header TSA:** normalmente restano in chrome.storage.session.
+  Se scegli il salvataggio cifrato, una copia viene conservata localmente con
+  AES-256-GCM e chiave derivata dalla password di protezione mediante PBKDF2-SHA256.
+  Dopo lo sblocco, segreti e chiave utilizzabile restano nella memoria di sessione.
+  La password di protezione non viene salvata nelle impostazioni.
+- **Stato dell'ultima acquisizione:** esito, URL, titolo, hash, nomi dei file e avvisi
+  disponibili restano nella memoria di sessione per poter riaprire il popup e vedere
+  il risultato. Non costituiscono un archivio delle acquisizioni.
+
+La memoria chrome.storage.session viene cancellata al riavvio del browser e quando
+l'estensione viene disabilitata, ricaricata o aggiornata. Chiudere soltanto il popup
+non cancella la sessione.
+
+## Connessioni esterne e marca temporale facoltativa
+
+Con la marca temporale attiva, l'estensione contatta il servizio **TSA selezionato
+dall'utente**, dopo la concessione del relativo permesso. Per un'acquisizione invia
+l'hash SHA-256 del manifest che elenca reperti e report, un numero casuale (*nonce*),
+l'eventuale identificativo di policy e le credenziali configurate per quel servizio.
+Il pulsante di prova della TSA invia invece una richiesta con un hash di test.
+
+**La richiesta TSA non contiene screenshot, HTML, MHTML, HAR, report, manifest completo
+o URL della pagina acquisita.** Il servizio riceve la richiesta e può osservare
+l'indirizzo IP della connessione e i metadati tecnici. Non vengono allegati i cookie
+del browser alla richiesta TSA. Il servizio applica la propria informativa e i propri
+tempi di conservazione, che non sono controllati dallo sviluppatore dell'estensione.
+
+L'endpoint predefinito FreeTSA usa HTTPS. Sono supportati anche endpoint HTTP senza
+credenziali: in quel caso la richiesta non beneficia della cifratura HTTPS.
+L'estensione rifiuta l'invio di credenziali via HTTP. Preferisci un endpoint HTTPS.
+
+Separatamente, il normale caricamento della pagina, la ricarica necessaria ai dati
+di rete e il caricamento di risorse durante lo scorrimento possono contattare il sito
+e i suoi fornitori, usando la sessione del browser. Queste connessioni seguono le
+impostazioni del browser e le informative dei siti interessati.
+
+## Controllo e cancellazione
+
+Puoi disattivare le funzioni facoltative prima dell'acquisizione e modificare o svuotare
+i campi della catena di custodia nel popup e nelle Opzioni. Il ripristino nelle Opzioni
+elimina i profili TSA, il vault e i segreti della sessione, ma **non cancella i dati
+della catena di custodia né i file già scaricati**.
+
+Per eliminare tutte le impostazioni locali puoi rimuovere l'estensione dal browser.
+Per eliminare le acquisizioni devi cancellare separatamente i file, gli eventuali
+archivi, le copie condivise e i backup che hai creato. La cancellazione della sola
+cronologia di navigazione non elimina le impostazioni dell'estensione.
+Lo sviluppatore non può accedere ai dati rimasti sul tuo dispositivo né cancellarli
+da remoto. La gestione delle copie trasferite a terzi resta sotto il tuo controllo.
 
 ## Supporto volontario Satispay
 
-Le Opzioni mostrano il nome utente pubblico Satispay dell'autore per un contributo
-facoltativo, anche di 1 € o di importo libero. Il pulsante di copia scrive negli appunti
-solo il nome utente mostrato. Il riquadro non contiene referral o link promozionali,
-non carica risorse esterne e non misura visualizzazioni, clic o pagamenti. Il programma
-non avvia trasferimenti e non riceve informazioni sui contributi. L'eventuale pagamento
-avviene separatamente nell'app Satispay secondo le sue condizioni e la sua informativa.
+Le Opzioni mostrano il nome utente pubblico Satispay dello sviluppatore per un
+contributo facoltativo. Il pulsante di copia scrive negli appunti soltanto quel nome.
+Il riquadro non contiene referral o link promozionali, non carica risorse esterne e
+non misura visualizzazioni, clic o pagamenti. L'estensione non avvia trasferimenti
+e non riceve informazioni sui contributi. L'eventuale pagamento avviene separatamente
+nell'app Satispay, secondo le sue condizioni e la sua informativa.
 
-## Contatti
+## Uso limitato dei dati
 
-Per domande apri una segnalazione nella sezione *Issues* del repository del progetto.
+L'uso delle informazioni ottenute tramite le API di Chrome rispetta la
+[Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq),
+compresi i requisiti di
+[Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use).
+I dati sono utilizzati soltanto per le funzioni di acquisizione documentata e marca
+temporale descritte. Non vengono venduti o utilizzati per pubblicità, profilazione,
+valutazione dell'affidabilità creditizia o concessione di prestiti. Le acquisizioni
+non vengono inviate allo sviluppatore o a un suo servizio di analisi.
+
+## Contatti e aggiornamenti
+
+Per domande sull'estensione o sull'informativa puoi contattare Andrea Martin tramite
+le [Issues del progetto](https://github.com/k4pPa3/plugin-screenshot-chrome/issues).
+Le segnalazioni sono pubbliche: non allegare credenziali, acquisizioni riservate o dati
+personali non necessari. L'informativa viene aggiornata quando cambiano le modalità
+di trattamento; la data e la versione di riferimento sono indicate all'inizio.
