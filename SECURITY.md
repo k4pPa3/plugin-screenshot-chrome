@@ -38,6 +38,11 @@ fornisce e il servizio di marca temporale. In particolare:
   certificati fino a una radice inclusa o aggiunta dall’utente vengono verificate; l’esito è
   `verified`, `untrusted`, `invalid` o `unsupported`. La revoca (CRL/OCSP) NON è controllata.
   Radici incluse in `lib/tsaroots.js`, con impronta SHA-256; vanno aggiornate quando cambiano.
+- **Intercettazione TLS**: un software locale che ispeziona HTTPS sostituisce il certificato
+  del sito. Con i dati di rete attivi la cattura si sospende se il certificato non ha SCT di
+  Certificate Transparency o proviene da un emittente di ispezione noto; procedendo comunque
+  l'esito e la scelta dell'utente sono registrati. Il rilevamento è euristico, non una
+  verifica del certificato contro fonti esterne.
 - **Integrità del pacchetto**: la marca riguarda un manifest di reperti e report immutabili.
   L’esito TSA resta in una ricevuta separata; il riepilogo finale include tutti gli altri file.
 - **Nomi e comandi**: nomi tecnici con UUID, indipendenti dal titolo della pagina; quoting

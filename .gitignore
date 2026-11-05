@@ -24,3 +24,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Documentazione interna non pubblicata (relazione tecnica)
+*.docx

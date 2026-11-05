@@ -20,9 +20,14 @@
 - **Formati**: PDF, PNG o JPEG. Nel PDF lo screenshot è incorporato così com'è; le pagine molto alte
   vengono divise su più pagine PDF senza perdere nulla.
 - **Pagina di copertina** nel PDF con URL, data/ora, browser, dati di rete e hash dei file correlati.
+- **Copia PDF per la stampa**: lo stesso screenshot impaginato su fogli A4 (verticali o orizzontali)
+  con fasce sovrapposte, numero di pagina e, su ogni foglio, l'hash del PDF digitale di riferimento.
 - **Report di acquisizione** in testo (e facoltativamente JSON), inclusi nel manifest SHA-256 insieme ai reperti.
 - **Copia della pagina** in MHTML (si riapre in Chrome) e sorgente HTML visualizzato come testo inerte.
 - **Dati di rete**: IP del server, risposta HTTP, redirect, header, certificato TLS e sua impronta.
+- **Rilevamento dell'intercettazione TLS**: se un antivirus, una VPN o un proxy ispeziona HTTPS
+  (il certificato registrato non sarebbe quello del sito), la cattura si sospende e propone di
+  disattivare la protezione e ricontrollare, oppure di acquisire comunque con avviso nel report.
 - **Confronto indicativo dell'orologio del PC** con il server; l’ora dichiarata dalla TSA è mostrata come non verificata.
 - **Marca temporale RFC 3161** con qualsiasi servizio (TSA) compatibile, anche con credenziali o API key.
 - **Tutto in un unico ZIP** con `SHA256SUMS.txt`, pronto da archiviare o consegnare.
@@ -79,6 +84,7 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 | Interruttore | Cosa fa |
 |---|---|
 | Pagina di copertina | Aggiunge al PDF una prima pagina con i dati dell'acquisizione (solo PDF) |
+| Copia PDF per la stampa | Salva anche `<id>.print.pdf` in fogli A4, adatto alla stampa (solo PDF) |
 | Scorri la pagina prima della cattura | Scorre fino in fondo per caricare le immagini *lazy* |
 | Salva pagina completa (MHTML) | Salva la pagina in un unico file riapribile in Chrome |
 | Salva sorgente HTML | Salva una pagina di consultazione che mostra il DOM come testo inerte, senza interpretarlo come markup |
@@ -100,7 +106,27 @@ Dall'icona ⚙ del popup:
   (predefinito), oppure cifrate su questo computer con una password di protezione
   (AES-256-GCM, PBKDF2 a 600.000 iterazioni) da inserire a ogni avvio del browser.
 - **Avanzate**: qualità JPEG nel PDF, attesa dopo il ridimensionamento, tempo massimo di caricamento,
-  altezza massima catturata, sottocartella di Download in cui salvare le acquisizioni.
+  altezza massima catturata, sottocartella di Download in cui salvare le acquisizioni,
+  orientamento della copia per la stampa (A4 verticale o orizzontale, con testo più grande),
+  controllo dell'intercettazione TLS prima di acquisire (attivo di default).
+
+### Intercettazione TLS
+
+Molti antivirus e VPN (es. NordVPN Threat Protection, Kaspersky, Avast, ESET) e i proxy aziendali
+ispezionano HTTPS sostituendo il certificato del sito con uno generato da una CA installata sul PC.
+In quel caso certificato e impronta nel report **non sono quelli del sito**. Con *Dati di rete*
+attivo l'estensione lo rileva da tre segnali:
+
+| Segnale | Significato |
+|---|---|
+| `no-sct` | Il certificato non ha SCT di Certificate Transparency (Chrome non li richiede alle CA locali) |
+| `known-issuer` | L'emittente è un software di ispezione noto |
+| `fresh-cert` | Il certificato è stato emesso meno di 24 ore prima |
+
+Esito `likely` con emittente noto, o senza SCT e appena emesso; `suspected` solo senza SCT.
+La cattura si ferma e il popup offre **Ricontrolla** (dopo aver disattivato la sola ispezione web:
+la VPN può restare attiva) o **Acquisisci comunque**. Esito, segnali e scelta dell'utente sono
+registrati in report, copertina e `report.json` (`network.tlsInterception`).
 
 Ogni servizio di marca temporale ha la sua configurazione: cambiando servizio, le credenziali
 dell'altro non vengono mai inviate. Credenziali e header non vengono mai inviati a servizi
@@ -115,7 +141,8 @@ Con tutte le funzioni attive, ogni acquisizione produce:
 
 | File | Contenuto |
 |---|---|
-| `<id>.pdf` | Copertina + screenshot integrale |
+| `<id>.pdf` | Copertina + screenshot integrale (reperto di riferimento) |
+| `<id>.print.pdf` | Copia in fogli A4 per la stampa, derivata dallo stesso screenshot |
 | `<id>.mhtml` | Copia completa della pagina |
 | `<id>.html` | Pagina HTML che mostra il sorgente DOM come testo inerte, con CSP restrittiva |
 | `<id>.tsr` | Risposta RFC 3161 relativa al manifest (token firmato dalla TSA) |
@@ -203,6 +230,11 @@ verificabili con il file principale come bersaglio, secondo le istruzioni del lo
   computer o il browser non fossero stati manomessi, né sostituisce una perizia forense.
 - Con *Dati di rete* attivo la pagina viene ricaricata: un modulo compilato a metà va perso, e i
   contenuti dinamici (pubblicità, feed) possono cambiare rispetto a quanto visto prima.
+- Se la connessione è ispezionata da software locale e si sceglie *Acquisisci comunque*, i dati
+  del certificato descrivono il software di ispezione, non il sito. Il rilevamento è euristico:
+  un'ispezione con un emittente sconosciuto e SCT presenti non verrebbe segnalata.
+- La copia per la stampa riduce lo screenshot alla larghezza del foglio: con pagine larghe il
+  testo può risultare piccolo; conviene catturare a 1024 px o usare l'A4 orizzontale.
 - Gli elementi alti quanto lo schermo (`100vh`) risultano allungati per tutta la pagina, come
   avviene anche con lo screenshot di DevTools.
 - Le pagine interne del browser (`chrome://`, Chrome Web Store) non si possono catturare.
@@ -247,8 +279,10 @@ lib/common.js      Impostazioni e funzioni comuni
 lib/i18n.js        Traduzioni con lingua selezionabile
 lib/locales/       Testi in en, it, fr, es (l'inglese fa da riserva)
 _locales/          Nome e descrizione del manifest tradotti
-lib/pdf.js         Generatore PDF (copertina + screenshot JPEG)
+lib/pdf.js         Generatore PDF (copertina + screenshot JPEG, copia A4 per la stampa)
 lib/tsa.js         Richiesta e lettura marche temporali RFC 3161
+lib/tsaverify.js   Verifica firma CMS e catena dei certificati della marca
+lib/tsaroots.js    CA radice incluse per i servizi TSA preimpostati
 lib/zip.js         Archivio ZIP non compresso
 lib/vault.js       Conservazione sicura delle credenziali della TSA
 icons/             Icone (generate da tools/make_icons.py)
