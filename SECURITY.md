@@ -78,6 +78,19 @@ fornisce e il servizio di marca temporale. In particolare:
 
 ## Rischi residui
 
+- **Isolamento del sistema operativo non incluso**: il plugin non avvia o gestisce
+  Windows Sandbox, VM o profili del sistema operativo. Il mondo JavaScript isolato e le
+  protezioni del browser non costituiscono un ambiente operativo indipendente dall'host.
+  Questo limite è accettato nel perimetro dell'estensione autonoma; un eventuale ambiente
+  esterno resta una misura separata, predisposta e documentata dall'operatore.
+- **Nessuna attestazione indipendente**: impronta del codice ed elenco delle estensioni
+  sono raccolti all'interno del browser. Un host o browser compromesso può falsificare
+  anche questi risultati. Una VM riduce alcuni rischi ma non certifica l'integrità
+  dell'host o dell'hypervisor; la marca temporale non elimina questa dipendenza.
+- **Portata della verifica TSA**: `verified` non include controllo della revoca né
+  qualificazione del servizio mediante liste fiduciarie eIDAS. Il preset del servizio
+  è un'indicazione di configurazione, non un'attestazione della sua qualificazione.
+
 - **Credenziali in memoria**: mentre il browser è aperto e le credenziali sono sbloccate,
   un malware con accesso al processo di Chrome può leggerle. Nessuna estensione può
   proteggersi da un computer compromesso.
@@ -86,11 +99,11 @@ fornisce e il servizio di marca temporale. In particolare:
   nell'MHTML e nell'HTML. Rimuoverli automaticamente renderebbe la prova contestabile, quindi
   non viene fatto. Per catturare pagine pubbliche usa una finestra in incognito (abilita
   l'estensione con *Consenti in modalità di navigazione in incognito*) o un profilo Chrome
-  dedicato senza account collegati, e valuta cosa condividi.
+  dedicato senza account collegati, e valuta cosa condividi. Incognito e profilo dedicato
+  non forniscono isolamento del sistema operativo né anonimato di rete.
 - **Permesso `debugger`**: è necessario per la cattura completa, i dati di rete e l'MHTML, e
   Chrome non permette di renderlo facoltativo. L'estensione lo usa solo sulla scheda attiva e
   solo durante una cattura avviata da te. Il rischio principale è un aggiornamento manomesso:
   per questo il progetto non ha dipendenze né codice caricato da remoto, le pagine hanno una
   CSP restrittiva e le release sono create da GitHub Actions a partire dai tag, con l'hash
   SHA-256 del pacchetto pubblicato accanto.
-

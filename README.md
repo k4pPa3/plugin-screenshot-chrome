@@ -260,29 +260,67 @@ verificabili con il file principale come bersaglio, secondo le istruzioni del lo
   essere convalidata verificando firma e catena; le garanzie dipendono dal servizio utilizzato.
 - L'estensione documenta ciò che il browser ha ricevuto e mostrato. Non può garantire che il
   computer o il browser non fossero stati manomessi, né sostituisce una perizia forense.
+  Le informazioni sull'ambiente sono raccolte dal browser stesso e non costituiscono
+  un'attestazione indipendente dell'integrità del sistema.
 - Con *Dati di rete* attivo la pagina viene ricaricata: un modulo compilato a metà va perso, e i
   contenuti dinamici (pubblicità, feed) possono cambiare rispetto a quanto visto prima.
 - Non sono inclusi: firma digitale dell'operatore sul manifest, video della sessione, controllo
-  della revoca (OCSP/CRL), registrazioni WHOIS/DNS, PDF/A e contenitori ASiC-E. Per il valore
-  legale nell'UE usare una TSA **qualificata eIDAS** e, se richiesto, firmare lo ZIP con un
-  dispositivo di firma qualificata esterno.
+  della revoca (OCSP/CRL), registrazioni WHOIS/DNS, PDF/A e contenitori ASiC-E.
+  L'art. 41 eIDAS non esclude gli effetti giuridici e l'ammissibilità di una validazione
+  temporale per il solo fatto che non sia qualificata; quella **qualificata** beneficia
+  della presunzione di accuratezza di data e ora e di integrità dei dati associati.
+  Nessuna marca certifica da sola la veridicità del contenuto o l'integrità del computer.
+  L'esito `verified` riguarda firma e catena: non include revoca o verifica della
+  qualificazione eIDAS mediante liste fiduciarie. Il preset del servizio non sostituisce
+  tale verifica. Un'eventuale firma qualificata dell'operatore richiede strumenti e
+  credenziali appropriati esterni all'estensione.
 - Il registro HAR osserva le richieste dalla ricarica fino al termine di screenshot e
   snapshot, incluso lo scorrimento automatico. Riporta intervallo, timeout di caricamento,
   richieste incomplete e scartate (massimo 3000 richieste, compresi i redirect). I corpi
   non recuperabili, inclusi quelli dei redirect, sono segnalati senza attribuire loro
   il contenuto della risposta finale. I contenuti sono quelli
-  decodificati dal browser, non i byte grezzi trasmessi (per questo il formato è HAR e non WARC).
+  decodificati dal browser, non una registrazione dei byte grezzi trasmessi. Il formato
+  esportato è HAR; cambiare contenitore non recupererebbe dati non osservati dal browser.
 - Se la connessione è ispezionata da software locale e si sceglie *Acquisisci comunque*, i dati
   del certificato descrivono il software di ispezione, non il sito. Il rilevamento è euristico:
   un'ispezione con un emittente sconosciuto e SCT presenti non verrebbe segnalata.
 - La copia per la stampa riduce lo screenshot alla larghezza del foglio: con pagine larghe il
   testo può risultare piccolo; conviene catturare a 1024 px o usare l'A4 orizzontale.
-- Gli elementi alti quanto lo schermo (`100vh`) risultano allungati per tutta la pagina, come
-  avviene anche con lo screenshot di DevTools.
-- Le pagine interne del browser (`chrome://`, Chrome Web Store) non si possono catturare.
+- La strategia attuale estende l'altezza della finestra simulata per catturare l'intera
+  pagina: elementi legati all'altezza del viewport (`100vh`) possono allungarsi e il layout
+  può differire da quello della finestra iniziale.
+- La modalità attuale basata su `debugger` rifiuta pagine interne del browser (`chrome://`,
+  Chrome Web Store) e altri schemi non supportati. Non è implementata una modalità
+  alternativa di sola cattura dell'area visibile tramite `captureVisibleTab`.
 - Le acquisizioni contengono quello che la pagina mostrava, compresi eventuali dati personali se
   eri autenticato. Per le pagine pubbliche conviene catturare da una finestra in incognito o da
-  un profilo Chrome dedicato.
+  un profilo Chrome dedicato. L'incognito non anonimizza l'operatore e non isola il
+  sistema operativo; un profilo dedicato separa i dati di navigazione, ma non protegge
+  da un host compromesso.
+
+### Isolamento esterno e limiti accettati
+
+Il progetto resta un'estensione autonoma, senza launcher nativo né dipendenze di
+virtualizzazione. Può usare le API e l'isolamento forniti dal browser, ma non crea o
+amministra una sandbox del sistema operativo o una macchina virtuale. Un collegamento
+tramite Native Messaging richiederebbe un'applicazione esterna installata e registrata:
+non sarebbe una funzione contenuta interamente nel plugin.
+
+Windows Sandbox o una VM ripristinabile possono essere predisposte separatamente
+secondo le regole dell'ufficio. Sono misure facoltative di riduzione del rischio, non
+funzioni implementate o controllate dall'estensione. Anche con una VM restano necessarie
+la fiducia nell'host e nell'hypervisor e la documentazione delle modalità di acquisizione.
+Un ambiente isolato non certifica l'autenticità del sito e non elimina eventuali
+intercettazioni TLS presenti lungo la connessione.
+
+Si accetta quindi come rischio residuo l'assenza di isolamento e attestazione del sistema
+operativo gestiti dal plugin. Il report non deve essere interpretato come una
+certificazione dell'assenza di manomissioni. L'eventuale ambiente esterno usato va annotato
+manualmente nelle note del caso; l'estensione non ne verifica autonomamente l'impiego.
+
+Riferimenti: [Native Messaging di Chrome](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging),
+[Windows Sandbox](https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/),
+[art. 41 del regolamento eIDAS](https://eur-lex.europa.eu/eli/reg/2014/910/2024-10-18).
 
 ## Sicurezza
 
