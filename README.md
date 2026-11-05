@@ -16,7 +16,8 @@
 
 - **Screenshot della pagina intera** con lo stesso meccanismo di *Capture full size screenshot* di
   Chrome DevTools, anche sui siti che disegnano solo la parte visibile (es. Reddit).
-- **Larghezza simulata**: finestra attuale, 1920, 1366, 1024 o 390 px (mobile).
+- **Larghezza simulata**: finestra attuale, 1920, 1366, 1123 (A4 orizzontale), 1024, 794 (A4)
+  o 390 px (mobile). Le larghezze A4 rendono la pagina come su un foglio e ottimizzano la copia per la stampa.
 - **Formati**: PDF, PNG o JPEG. Nel PDF lo screenshot è incorporato così com'è; le pagine molto alte
   vengono divise su più pagine PDF senza perdere nulla.
 - **Pagina di copertina** nel PDF con URL, data/ora, browser, dati di rete e hash dei file correlati.
@@ -346,8 +347,8 @@ python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 poi crea e invia un tag con la stessa versione. GitHub Actions crea il pacchetto e la release.
 
 ```sh
-git tag v1.7.0
-git push origin v1.7.0
+git tag v1.7.1
+git push origin v1.7.1
 ```
 
 ## Licenza

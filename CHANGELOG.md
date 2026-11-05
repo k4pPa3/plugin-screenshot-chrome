@@ -4,6 +4,12 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.7.1] - 2026-11-05
+
+### Aggiunto
+
+- Larghezze simulate A4: 794 px (verticale) e 1123 px (orizzontale), a 96 dpi.
+
 ## [1.7.0] - 2026-11-05
 
 ### Aggiunto
@@ -204,6 +210,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.7.1]: ../../releases/tag/v1.7.1
 [1.7.0]: ../../releases/tag/v1.7.0
 [1.6.0]: ../../releases/tag/v1.6.0
 [1.5.0]: ../../releases/tag/v1.5.0
