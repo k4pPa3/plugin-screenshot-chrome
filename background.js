@@ -30,15 +30,6 @@ function cleanText(value) {
   return String(value ?? "").replace(UNSAFE_CHARS, " ").replace(/ {2,}/g, " ").trim();
 }
 
-function safeName(title) {
-  return cleanText(title)
-    .replace(/[\\/:*?"<>|]+/g, "_")
-    .replace(/\s+/g, " ")
-    .replace(/^[.\s]+/, "")
-    .trim()
-    .slice(0, 80) || "screenshot";
-}
-
 // Nasconde l'eventuale password scritta nell'URL (https://utente:password@host).
 function redactUrl(url) {
   try {
@@ -94,17 +85,21 @@ async function evaluate(target, contextId, expression, timeoutMs) {
   return res.result?.value;
 }
 
-// Il file HTML salvato, se aperto, eseguirebbe gli script della pagina dal
-// disco e potrebbe contattare il sito. Una Content-Security-Policy inserita
-// in testa blocca script e risorse esterne; il resto è il DOM originale.
-const SAVED_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; form-action 'none'; base-uri 'none'";
+// Il DOM non affidabile viene mostrato come sorgente inerte: non reinserirlo
+// come markup e non cercare <head> con regex (può comparire in un commento).
+const SAVED_HTML_CSP = "default-src 'none'; base-uri 'none'; form-action 'none'";
 
 function protectHtml(html) {
-  const comment = t("html.cspComment").replace(/--/g, "-").replace(/>/g, "");
-  const guard = `<meta http-equiv="Content-Security-Policy" content="${SAVED_HTML_CSP}"><!-- ${comment} -->`;
-  const head = html.match(/<head\b[^>]*>/i);
-  if (head) return html.slice(0, head.index + head[0].length) + guard + html.slice(head.index + head[0].length);
-  return guard + html;
+  const escape = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${SAVED_HTML_CSP}"><title>HTML source</title></head><body><pre>${escape(html)}</pre></body></html>`;
+}
+
+function powershellLiteral(value) {
+  return "'" + String(value).replace(/['\u2018\u2019\u201a\u201b]/g, (ch) => ch + ch) + "'";
+}
+
+function shellLiteral(value) {
+  return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
 function formatFingerprint(hex) {
@@ -451,6 +446,11 @@ function buildCover(acq, relatedFiles) {
 function timestampRows(ts) {
   if (!ts) return [];
   if (ts.error) return [[t("row.error"), ts.error]];
+  if (ts.status === "requested") return [
+    [t("row.tsaService"), ts.url],
+    [t("row.tsaTarget"), ts.target],
+    [t("row.result"), t("tsa.pendingReceipt", { file: ts.receipt })]
+  ];
   return [
     [t("row.tsaService"), ts.url],
     [t("row.tsaTarget"), ts.target],
@@ -501,23 +501,24 @@ function buildReportText(acq) {
   lines.push(t("report.sha256sum"));
   for (const f of acq.files) lines.push(`${f.sha256}  ${f.name}`);
   lines.push("", t("report.windows"));
-  for (const f of acq.files) lines.push(`  Get-FileHash -Algorithm SHA256 "${f.name}"`);
-  const stamped = acq.timestamp && !acq.timestamp.error;
-  if (stamped) {
+  for (const f of acq.files) lines.push(`  Get-FileHash -Algorithm SHA256 -LiteralPath ${powershellLiteral(f.name)}`);
+  const timestampRequested = acq.timestamp && !acq.timestamp.error;
+  if (timestampRequested) {
     lines.push(
       "",
       t("report.openssl"),
-      `  openssl ts -reply -in "${acq.timestamp.file}" -text`,
-      `  openssl ts -verify -data "${acq.timestamp.target}" -in "${acq.timestamp.file}" -CAfile ${t("report.tsaCerts")}`
+      `  openssl ts -reply -in ${shellLiteral(acq.timestamp.file)} -text`,
+      `  openssl ts -verify -data ${shellLiteral(acq.timestamp.target)} -in ${shellLiteral(acq.timestamp.file)} -CAfile tsa-ca.pem -untrusted tsa-chain.pem`,
+      `  sha256sum -c ${shellLiteral(acq.timestamp.target)}`
     );
   }
-  lines.push("", ...t(stamped ? "report.note.tsa" : "report.note.clock").split("\n"));
+  lines.push("", ...t(timestampRequested ? "report.note.tsa" : "report.note.clock").split("\n"));
   return lines.join("\r\n") + "\r\n";
 }
 
 function buildReportJson(acq) {
   return JSON.stringify({
-    schema: "full-page-screenshot/report@1",
+    schema: "full-page-screenshot/report@2",
     capturedAt: acq.date.toISOString(),
     capturedAtLocal: localIsoWithOffset(acq.date),
     timezone: acq.timezone,
@@ -539,12 +540,59 @@ function buildReportJson(acq) {
   }, null, 2);
 }
 
-async function download(bytes, mime, filename, subfolder) {
-  await chrome.downloads.download({
-    url: `data:${mime};base64,${bytesToBase64(bytes)}`,
-    filename: subfolder ? `${subfolder}/${filename}` : filename,
-    saveAs: false,
-    conflictAction: "uniquify"
+// Avvio del download != completamento. Ascolta prima di avviarlo e controlla
+// anche lo stato corrente, così non si perdono download completati subito.
+function download(bytes, mime, filename, subfolder, timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    let id;
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(poll);
+      chrome.downloads.onChanged.removeListener(changed);
+      chrome.downloads.onErased.removeListener(erased);
+      error ? reject(error) : resolve(id);
+    };
+    const inspect = (item) => {
+      if (item.state === "complete") {
+        const actual = item.filename?.split(/[\\/]/).pop();
+        if (actual && actual !== filename) finish(i18nError("err.download", { file: filename, error: "renamed" }));
+        else finish();
+      }
+      else if (item.state === "interrupted") finish(i18nError("err.download", { file: filename, error: item.error || "interrupted" }));
+    };
+    const changed = (delta) => {
+      if (delta.id !== id) return;
+      if (delta.state?.current === "complete") void check();
+      else inspect({ state: delta.state?.current, error: delta.error?.current });
+    };
+    const erased = (erasedId) => {
+      if (erasedId === id) finish(i18nError("err.download", { file: filename, error: "removed" }));
+    };
+    const check = async () => {
+      if (id === undefined || settled) return;
+      try {
+        const [item] = await chrome.downloads.search({ id });
+        if (!item) finish(i18nError("err.download", { file: filename, error: "missing" }));
+        else inspect(item);
+      } catch (err) { finish(err); }
+    };
+    const timer = setTimeout(() => finish(i18nError("err.download", { file: filename, error: "timeout" })), timeoutMs);
+    // Le chiamate API periodiche mantengono attivo il service worker MV3.
+    const poll = setInterval(check, 5000);
+    chrome.downloads.onChanged.addListener(changed);
+    chrome.downloads.onErased.addListener(erased);
+    Promise.resolve().then(() => chrome.downloads.download({
+      url: `data:${mime};base64,${bytesToBase64(bytes)}`,
+      filename: subfolder ? `${subfolder}/${filename}` : filename,
+      saveAs: false,
+      conflictAction: "uniquify"
+    })).then((downloadId) => {
+      id = downloadId;
+      return check();
+    }).catch(finish);
   });
 }
 
@@ -597,7 +645,7 @@ async function run(tab) {
     timestamp: null
   };
 
-  const base = `${safeName(tab.title)}_${fileTimestamp(shot.date)}`;
+  const base = `capture_${fileTimestamp(shot.date)}_${crypto.randomUUID()}`;
   const related = [];
   if (shot.mhtml) related.push(await fileEntry(`${base}.mhtml`, "mhtml", t("role.mhtml"), shot.mhtml, "multipart/related"));
   if (shot.html) related.push(await fileEntry(`${base}.html`, "html", t("role.html"), shot.html, "text/html;charset=utf-8"));
@@ -621,31 +669,17 @@ async function run(tab) {
   const outputs = [main, ...related];
   const warnings = [];
 
-  if (features.timestamp) {
-    try {
-      const hash = await sha256Bytes(main.bytes);
-      const sentAt = Date.now();
-      const ts = await requestTimestamp(hash, tsaConfig);
-      const localMid = (sentAt + Date.now()) / 2;
-      const tsaTime = Date.parse(ts.genTime);
-      acq.timestamp = {
-        ...ts,
-        target: main.name,
-        file: `${base}.tsr`,
-        clockSkewSeconds: Number.isFinite(tsaTime) ? Math.round((tsaTime - localMid) / 1000) : null
-      };
-      const tsrEntry = await fileEntry(`${base}.tsr`, "timestamp", t("role.tsr"), ts.tsr, "application/timestamp-reply");
-      acq.files.push(tsrEntry);
-      outputs.push(tsrEntry);
-    } catch (err) {
-      acq.timestamp = { error: err.message };
-      warnings.push(t("warn.tsa", { error: err.message }));
-    }
-  }
+  // Il report descrive la richiesta. L'esito va in un file separato, perché
+  // il report stesso viene vincolato dal manifest prima della richiesta TSA.
+  if (features.timestamp) acq.timestamp = {
+    status: "requested", verification: "not-verified", url: tsaConfig.url,
+    target: `${base}.manifest.sha256`, file: `${base}.tsr`,
+    receipt: `${base}.timestamp.json`
+  };
   if (shot.networkError) warnings.push(t("warn.network", { error: shot.networkError }));
   if (urlChanged) warnings.push(t("warn.urlChanged", { url: acq.url }));
   if (shot.fullHeight) warnings.push(t("warn.truncated", { height: shot.height, full: shot.fullHeight }));
-  const skew = acq.timestamp?.clockSkewSeconds ?? shot.network?.clockSkewSeconds;
+  const skew = shot.network?.clockSkewSeconds;
   if (Number.isFinite(skew) && Math.abs(skew) > 10) {
     warnings.push(t("warn.clock", { direction: t(skew > 0 ? "clock.behind" : "clock.ahead"), seconds: Math.abs(skew) }));
   }
@@ -656,11 +690,40 @@ async function run(tab) {
     outputs.push({ name: `${base}.report.json`, bytes: enc.encode(buildReportJson(acq)), mime: "application/json" });
   }
 
+  // Manifest immutabile: tutti i reperti e i report, senza token o ricevute
+  // che ancora non esistono. La TSA marca questo file, non solo lo screenshot.
+  const checksums = async (files) => (await Promise.all(files.map(async (f) =>
+    `${await sha256Hex(f.bytes)}  ${f.name}`))).join("\n") + "\n";
+  const evidenceManifest = {
+    name: `${base}.manifest.sha256`,
+    bytes: enc.encode(await checksums(outputs)), mime: "text/plain;charset=utf-8"
+  };
+  outputs.push(evidenceManifest);
+
+  if (features.timestamp) {
+    const targetHash = await sha256Hex(evidenceManifest.bytes);
+    try {
+      const ts = await requestTimestamp(await sha256Bytes(evidenceManifest.bytes), tsaConfig);
+      acq.timestamp = { ...acq.timestamp, ...ts, targetSha256: targetHash };
+      outputs.push({ name: `${base}.tsr`, bytes: ts.tsr, mime: "application/timestamp-reply" });
+      warnings.push(t("tsa.unverified"));
+    } catch (err) {
+      acq.timestamp = { ...acq.timestamp, status: "failed", error: err.message, targetSha256: targetHash };
+      warnings.push(t("warn.tsa", { error: err.message }));
+    }
+    const { tsr, ...timestampResult } = acq.timestamp;
+    const receipt = { schema: "full-page-screenshot/timestamp@1", ...timestampResult };
+    outputs.push({ name: `${base}.timestamp.json`, bytes: enc.encode(JSON.stringify(receipt, null, 2)), mime: "application/json" });
+  }
+
+  // Il riepilogo finale include anche manifest, token e ricevuta. Esclude solo
+  // se stesso. Il manifest marcato protegge il contenuto probatorio e i report.
+  outputs.push({ name: `${base}.SHA256SUMS.txt`, bytes: enc.encode(await checksums(outputs)), mime: "text/plain;charset=utf-8" });
   const subfolder = cleanSubfolder(settings.advanced.subfolder);
   let zipHash = null;
   if (features.zip) {
-    const sums = acq.files.map((f) => `${f.sha256}  ${f.name}`).join("\n") + "\n";
-    outputs.push({ name: "SHA256SUMS.txt", bytes: enc.encode(sums) });
+    // Nome convenzionale dentro lo ZIP; all'esterno usa l'ID acquisizione.
+    outputs[outputs.length - 1].name = "SHA256SUMS.txt";
     const zip = makeZip(outputs, shot.date);
     zipHash = await sha256Hex(zip);
     await download(zip, "application/zip", `${base}.zip`, subfolder);
@@ -675,6 +738,7 @@ async function run(tab) {
     hash: main.sha256,
     zipHash,
     genTime: acq.timestamp?.genTime || null,
+    timestampVerification: acq.timestamp?.verification || null,
     warnings
   };
 }
@@ -728,3 +792,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   return true; // risposta asincrona
 });
+

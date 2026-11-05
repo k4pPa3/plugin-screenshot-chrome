@@ -27,8 +27,8 @@ jobs:
             exit 1
           fi
 
-      - name: Controlla la sintassi JavaScript
-        run: for f in background.js popup.js options.js lib/*.js; do node --check "$f"; done
+      - name: Controlla sintassi e test di regressione
+        run: python3 tools/check.py
 
       - name: Crea il pacchetto
         run: python3 tools/build.py
@@ -40,3 +40,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --title "$GITHUB_REF_NAME" --generate-notes
+
