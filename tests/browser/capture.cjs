@@ -7,8 +7,6 @@ const os = require('node:os');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { createHash } = require('node:crypto');
-const { spawn } = require('node:child_process');
-const { setTimeout: delay } = require('node:timers/promises');
 
 test('real extension: redirect, scroll traffic, completed and interrupted downloads', { timeout: 90000 }, async t => {
   const server = http.createServer((req, res) => {
@@ -28,47 +26,23 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'fwc-browser-'));
-  let browser, connection, process;
+  let browser;
   try {
     const root = path.resolve(__dirname, '../..');
-    // Launch a normal browser profile. Playwright's download interception
-    // overrides extension-suggested filenames, invalidating this particular test.
-    await fs.mkdir(path.join(profile, 'Default'), { recursive: true });
-    await fs.writeFile(path.join(profile, 'Default', 'Preferences'), JSON.stringify({
-      download: { default_directory: path.join(profile, 'downloads'), prompt_for_download: false }
-    }));
-    process = spawn(chromium.executablePath(), [
-      '--no-sandbox', '--no-first-run', '--no-default-browser-check', '--disable-dev-shm-usage',
-      `--user-data-dir=${profile}`, '--remote-debugging-port=0',
-      `--disable-extensions-except=${root}`, `--load-extension=${root}`, 'about:blank'
-    ], { stdio: 'ignore' });
-    let port;
-    for (let i = 0; i < 100; i++) {
-      try { port = (await fs.readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; break; }
-      catch { await delay(100); }
-    }
-    assert.ok(port, 'Chromium must expose its debugging port');
-    connection = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { noDefaults: true });
-    browser = connection.contexts()[0];
-    const isExtension = worker => worker.url().endsWith('/background.js');
-    const worker = browser.serviceWorkers().find(isExtension) || await browser.waitForEvent('serviceworker', { predicate: isExtension });
-    let ready = false;
-    for (let i = 0; i < 100; i++) {
-      ready = await worker.evaluate(() => typeof capture === 'function' && typeof getSettings === 'function');
-      if (ready) break;
-      await delay(100);
-    }
-    assert.ok(ready, 'Extension worker must finish loading its scripts: ' + JSON.stringify(await worker.evaluate(() => ({ url: location.href, capture: typeof capture, settings: typeof getSettings }))));
+    browser = await chromium.launchPersistentContext(profile, {
+      channel: 'chromium', headless: true, acceptDownloads: true,
+      args: ['--no-sandbox', `--disable-extensions-except=${root}`, `--load-extension=${root}`]
+    });
+    const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
     const page = await browser.newPage();
     await page.goto(`${base}/redirect`);
     // Keep a redirect as the reload target to exercise requestId reuse.
     await page.evaluate(() => history.replaceState(null, '', '/redirect'));
     const shot = await worker.evaluate(async base => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const defaults = await getSettings();
-      const settings = { ...defaults, format: 'png', features: {
-        ...defaults.features, network: true, har: true, autoScroll: true
-      }, advanced: { ...defaults.advanced, loadTimeout: 4000, settleDelay: 50 } };
+      const settings = { ...DEFAULT_SETTINGS, format: 'png', features: {
+        ...DEFAULT_SETTINGS.features, network: true, har: true, autoScroll: true
+      }, advanced: { ...DEFAULT_SETTINGS.advanced, loadTimeout: 4000, settleDelay: 50 } };
       const shot = await capture(tab, settings);
       return { entries: shot.harEntries, collection: shot.network.harCollection, imageSize: shot.image.length };
     }, base);
@@ -86,16 +60,17 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     assert.ok(shot.collection.pending >= 1);
     t.diagnostic(`Chromium ${browser.browser().version()}: ${shot.entries.length} requests, scroll body hash verified`);
 
+    // CDP automation uses a generic filename for data URLs. Filename
+    // mismatch rejection is covered separately in tests/download.test.cjs.
+    const cdp = await browser.newCDPSession(page);
+    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: path.join(profile, 'downloads') });
     const downloaded = await worker.evaluate(async () => {
-      try { await download(new TextEncoder().encode('complete'), 'text/plain', 'fwc-test.txt', ''); }
-      catch (err) {
-        const items = await chrome.downloads.search({});
-        throw new Error(err.message + ' ' + JSON.stringify(items.map(x => ({ filename:x.filename, state:x.state }))));
-      }
-      const [item] = await chrome.downloads.search({ query: ['fwc-test.txt'] });
+      await download(new TextEncoder().encode('complete'), 'text/plain', 'download.txt', '');
+      const [item] = await chrome.downloads.search({ query: ['download.txt'] });
       return item.state;
     });
     assert.equal(downloaded, 'complete');
+    assert.equal(await fs.readFile(path.join(profile, 'downloads', 'download.txt'), 'utf8'), 'complete');
 
     const interrupted = await worker.evaluate(async base => {
       // Use an HTTP stream with the real downloads API, while keeping download()'s
@@ -118,12 +93,7 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     }, base);
     assert.match(interrupted, /Download not completed/);
   } finally {
-    if (connection) await connection.close();
-    if (process && process.exitCode === null && process.signalCode === null) {
-      const exited = new Promise(resolve => process.once('exit', resolve));
-      process.kill('SIGKILL');
-      await exited;
-    }
+    if (browser) await browser.close();
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
     await fs.rm(profile, { recursive: true, force: true });
