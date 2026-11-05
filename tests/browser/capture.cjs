@@ -53,7 +53,8 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     assert.equal(redirect.bodyText, undefined);
     assert.equal(redirect.bodyOmitted, 'redirect');
     const lazy = shot.entries.find(e => e.request.url === `${base}/lazy`);
-    assert.equal(lazy?.bodyText, 'LAZY RESOURCE');
+    assert.ok(lazy);
+    assert.equal(Buffer.from(lazy.bodyText, lazy.bodyBase64 ? 'base64' : 'utf8').toString(), 'LAZY RESOURCE');
     assert.equal(lazy.sha256, createHash('sha256').update('LAZY RESOURCE').digest('hex'));
     assert.ok(shot.entries.some(e => e.request.url === `${base}/pending` && e.bodyOmitted === 'pending'));
     assert.ok(shot.collection.pending >= 1);
