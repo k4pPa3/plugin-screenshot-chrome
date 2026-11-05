@@ -60,6 +60,10 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     assert.ok(shot.collection.pending >= 1);
     t.diagnostic(`Chromium ${browser.browser().version()}: ${shot.entries.length} requests, scroll body hash verified`);
 
+    // Playwright normally assigns GUID names (allowAndName). Use normal
+    // browser filenames so the extension can enforce its integrity checks.
+    const cdp = await browser.newCDPSession(page);
+    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: path.join(profile, 'downloads') });
     const downloaded = await worker.evaluate(async () => {
       await download(new TextEncoder().encode('complete'), 'text/plain', 'fwc-test.txt', '');
       const [item] = await chrome.downloads.search({ query: ['fwc-test.txt'] });
