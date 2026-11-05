@@ -4,6 +4,22 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.7.6] - 2026-11-05
+
+### Corretto
+
+- Rimosso il referral Satispay da Opzioni, codice e traduzioni; resta il sostegno
+  volontario tramite nome utente pubblico copiabile, senza collegamenti promozionali.
+- Informativa privacy chiarita sul trattamento locale, sui contenuti sensibili
+  eventualmente acquisiti e sui dati tecnici osservabili dal servizio TSA.
+
+### Aggiunto
+
+- Materiale di presentazione per il Chrome Web Store in italiano e inglese, con
+  motivazioni dei permessi, istruzioni per il revisore e dichiarazioni sul trattamento.
+- Screenshot reali generati in Chromium e bundle di presentazione separato dallo ZIP
+  installabile. La preparazione non implica approvazione o pubblicazione sullo store.
+
 ## [1.7.5] - 2026-11-05
 
 ### Aggiunto
@@ -249,6 +265,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.7.6]: ../../releases/tag/v1.7.6
 [1.7.5]: ../../releases/tag/v1.7.5
 [1.7.3]: ../../releases/tag/v1.7.3
 [1.7.2]: ../../releases/tag/v1.7.2

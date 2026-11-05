@@ -329,7 +329,7 @@ $("testTsa").addEventListener("click", async () => {
 });
 
 // Copy only the fixed public identifiers displayed in this panel. No account,
- // payment or acquisition data is sent by the extension.
+// payment or acquisition data is sent by the extension.
 async function copySupportIdentifier(elementId, successKey) {
   try {
     await navigator.clipboard.writeText($(elementId).textContent);
@@ -340,8 +340,6 @@ async function copySupportIdentifier(elementId, successKey) {
 }
 $("copySupportUsername").addEventListener("click", () =>
   copySupportIdentifier("supportUsername", "options.support.usernameCopied"));
-$("copySupportPromo").addEventListener("click", () =>
-  copySupportIdentifier("supportPromoCode", "options.support.promoCopied"));
 
 const manifest = chrome.runtime.getManifest();
 $("version").textContent = `${manifest.name} ${manifest.version}`;

@@ -6,15 +6,21 @@ Forensic Web Capture è un'estensione per Google Chrome sviluppata da Andrea Mar
 
 ## Dati raccolti
 
-L'estensione **non raccoglie, non trasmette e non vende** dati personali. Non usa analytics,
-cookie di tracciamento o server propri.
+L'estensione **tratta dati sul dispositivo dell'utente** per creare le acquisizioni.
+L'autore non riceve le acquisizioni e non usa analytics, cookie di tracciamento o server
+propri. Non vende i dati trattati. L'elaborazione locale può includere dati personali
+e sensibili presenti nelle pagine o inseriti dall'operatore, come descritto di seguito.
 
 ## Dati elaborati sul tuo dispositivo
 
 Quando avvii una cattura, l'estensione legge la pagina della scheda attiva (aspetto, contenuto,
 URL, titolo e, se attivi la funzione *Dati di rete*, la risposta HTTP e il certificato del sito).
 Questi dati servono solo a creare i file di acquisizione, che vengono salvati nella cartella
-Download del tuo computer e non vengono inviati altrove.
+Download del tuo computer e non vengono inviati all'autore. Il contenuto del sito può
+comprendere comunicazioni, informazioni sanitarie o finanziarie e dati di autenticazione,
+a seconda della pagina scelta. Le intestazioni HAR di autorizzazione e cookie sono
+oscurate, ma il contenuto di screenshot, HTML, MHTML e risposte può comunque includere
+dati sensibili o token: non viene effettuata una bonifica generale delle acquisizioni.
 
 Con il **registro HAR** l'acquisizione contiene anche le risorse caricate dalla pagina (con
 cookie e header di autorizzazione oscurati). Se attivi le relative opzioni, il report include
@@ -36,17 +42,19 @@ all'autore.
 Se attivi la **marca temporale RFC 3161**, l'estensione invia al servizio da te configurato
 (TSA) una richiesta che contiene **l'hash SHA-256** del manifest di acquisizione (reperti e report) e un numero casuale (nonce),
 insieme alle credenziali che hai inserito. Non vengono inviati il file, l'URL o il contenuto della
-pagina. Il trattamento di questa richiesta è regolato dall'informativa del servizio scelto.
+pagina. Come per qualsiasi connessione al servizio, il fornitore TSA può osservare
+l'indirizzo IP e i metadati tecnici della richiesta. L'invio può avvenire via HTTP solo
+per servizi senza credenziali; l'estensione rifiuta l'invio di credenziali via HTTP.
+Per il servizio scelto preferire un endpoint HTTPS. Il trattamento di questa richiesta è regolato dall'informativa del servizio scelto.
 
-## Supporto volontario e invito Satispay
+## Supporto volontario Satispay
 
-Le Opzioni mostrano il nome utente pubblico dell'autore e un invito Satispay facoltativo.
-I pulsanti di copia scrivono negli appunti solo il nome utente o il codice invito mostrato.
-Il riquadro non carica risorse esterne e non misura visualizzazioni, clic o pagamenti.
-Solo scegliendo *Apri link invito* si apre una pagina esterna Satispay, che riceve la
-normale richiesta di navigazione con il codice di invito; non vengono aggiunti dati
-di acquisizione, credenziali TSA o impostazioni del plugin. La pagina esterna è regolata
-dall'informativa Satispay. Il programma non riceve informazioni su registrazioni o pagamenti.
+Le Opzioni mostrano il nome utente pubblico Satispay dell'autore per un contributo
+facoltativo, anche di 1 € o di importo libero. Il pulsante di copia scrive negli appunti
+solo il nome utente mostrato. Il riquadro non contiene referral o link promozionali,
+non carica risorse esterne e non misura visualizzazioni, clic o pagamenti. Il programma
+non avvia trasferimenti e non riceve informazioni sui contributi. L'eventuale pagamento
+avviene separatamente nell'app Satispay secondo le sue condizioni e la sua informativa.
 
 ## Contatti
 
