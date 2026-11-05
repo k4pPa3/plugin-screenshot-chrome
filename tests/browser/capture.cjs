@@ -63,9 +63,7 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     // Playwright normally assigns GUID names (allowAndName). Use normal
     // browser filenames so the extension can enforce its integrity checks.
     const cdp = await browser.newCDPSession(page);
-    const { targetInfo } = await cdp.send('Target.getTargetInfo');
-    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', browserContextId: targetInfo.browserContextId,
-      downloadPath: path.join(profile, 'downloads') });
+    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: path.join(profile, 'downloads') });
     const downloaded = await worker.evaluate(async () => {
       try { await download(new TextEncoder().encode('complete'), 'text/plain', 'fwc-test.txt', ''); }
       catch (err) {
