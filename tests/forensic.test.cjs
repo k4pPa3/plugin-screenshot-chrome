@@ -70,11 +70,12 @@ test('environment, history and qualified TSA appear in the reports', async () =>
   const c = await context();
   c.eval(`
     getSettings = async () => ({...DEFAULT_SETTINGS, format:'png', tsa: {...DEFAULT_SETTINGS.tsa, preset:'aruba', url:'https://tsa.test/'},
-      features: {...DEFAULT_SETTINGS.features, jsonReport:true, timestamp:true, zip:true}});
+      features: {...DEFAULT_SETTINGS.features, jsonReport:true, timestamp:true, zip:true, network:true, har:true}});
     collectEnvironment = async () => ({ code: { sha256: 'cd'.repeat(32), files: [] },
       extensions: [{ id:'a', name:'Spy', version:'1', canAlterPages:true, sensitive:['debugger'] }] });
     capture = async () => ({date:new Date('2026-11-05T08:00:00Z'),url:'https://example.test/',title:'t',width:8,height:6,image:new Uint8Array([1]),
       history:[{url:'https://search.test/?q=x',title:'s',transition:'typed'},{url:'https://example.test/',title:'t',transition:'link'}],
+      network:{harCollection:{startedAt:'2026-11-05T07:59:50Z',endedAt:'2026-11-05T08:00:01Z',entries:1,pending:1,droppedRequests:0,bodiesOmitted:1,loadTimedOut:false}},
       harEntries:[{request:{method:'GET',url:'https://example.test/',headers:{}},response:{status:200,headers:{}},sha256:'ef'.repeat(32)}]});
     requestTimestamp = async () => ({tsr:new Uint8Array([9]), status:'granted',verification:'verified',signer:'S',anchor:'A',genTime:'2026-11-05T08:01:00Z'});
     globalThis.outputs=[];
@@ -88,12 +89,17 @@ test('environment, history and qualified TSA appear in the reports', async () =>
   const json = JSON.parse(text('.report.json'));
   assert.equal(json.environment.code.sha256, 'cd'.repeat(32));
   assert.equal(json.history.length, 2);
+  assert.equal(json.network.harCollection.pending, 1);
   assert.equal(json.tsaQualified, true);
   const txt = text('.report.txt');
   assert.match(txt, /search\.test/);
   assert.match(txt, /Spy/);
+  assert.match(txt, /HAR observation/);
   assert.ok(result.warnings.map(c.tm).some((w) => /Spy/.test(w)));
   const har = JSON.parse(text('.har'));
   assert.equal(har.log.entries[0]._sha256, 'ef'.repeat(32));
+  assert.equal(har.log._collection.pending, 1);
+  assert.equal(har.log.pages[0].startedDateTime, '2026-11-05T07:59:50Z');
+  assert.ok(result.warnings.map(c.tm).some((w) => /HAR collection/.test(w)));
   assert.match(text('.manifest.sha256'), /\.har/);
 });

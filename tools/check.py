@@ -5,7 +5,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parent.parent
 
 def main():
-    scripts = sorted(ROOT.glob('*.js')) + sorted((ROOT / 'lib').rglob('*.js')) + sorted((ROOT / 'tests').glob('*.cjs'))
+    scripts = sorted(ROOT.glob('*.js')) + sorted((ROOT / 'lib').rglob('*.js')) + sorted((ROOT / 'tests').rglob('*.cjs'))
     for script in scripts:
         subprocess.run(['node', '--check', str(script)], check=True, cwd=ROOT)
     tests = sorted(str(p) for p in (ROOT / 'tests').glob('*.test.cjs'))

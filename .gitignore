@@ -28,3 +28,6 @@ desktop.ini
 
 # Documentazione interna non pubblicata (relazione tecnica)
 *.docx
+
+# Browser test dependencies
+node_modules/

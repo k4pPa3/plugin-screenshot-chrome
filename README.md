@@ -34,7 +34,7 @@
 - **Catena di custodia**: operatore, organizzazione, riferimento del caso e motivo, inclusi in
   report e copertina e quindi coperti dalla marca temporale; facoltativamente obbligatori.
 - **Registro delle operazioni** con l'ora UTC di ogni passo dell'acquisizione.
-- **Registro HAR** di tutte le risorse caricate, con SHA-256 del contenuto di ogni risposta.
+- **Registro HAR** delle risorse osservate, con SHA-256 dei contenuti recuperabili e limiti documentati.
 - **Integrità dell'ambiente**: impronta del codice dell'estensione, confrontabile con quella
   pubblicata nella release, ed elenco facoltativo delle altre estensioni attive.
 - **Cronologia della scheda** (facoltativa) per documentare come si è arrivati alla pagina.
@@ -97,7 +97,7 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 | Salva pagina completa (MHTML) | Salva la pagina in un unico file riapribile in Chrome |
 | Salva sorgente HTML | Salva una pagina di consultazione che mostra il DOM come testo inerte, senza interpretarlo come markup |
 | Dati di rete e certificato | **Ricarica la pagina** e registra risposta HTTP, IP, redirect, header e certificato TLS |
-| Registro HAR di tutte le risorse | Con i dati di rete, salva `<id>.har` con ogni richiesta e risposta e l'SHA-256 dei contenuti |
+| Registro HAR delle risorse osservate | Con i dati di rete, salva `<id>.har` con ogni richiesta e risposta e l'SHA-256 dei contenuti |
 | Marca temporale RFC 3161 | Invia l’hash del manifest (reperti e report) alla TSA; salva token `.tsr` ed esito `.timestamp.json` |
 | Report anche in JSON | Salva il report anche in formato leggibile dalle macchine |
 | Tutto in un unico ZIP | Raggruppa tutti i file in uno ZIP non compresso, con `SHA256SUMS.txt` |
@@ -266,7 +266,11 @@ verificabili con il file principale come bersaglio, secondo le istruzioni del lo
   della revoca (OCSP/CRL), registrazioni WHOIS/DNS, PDF/A e contenitori ASiC-E. Per il valore
   legale nell'UE usare una TSA **qualificata eIDAS** e, se richiesto, firmare lo ZIP con un
   dispositivo di firma qualificata esterno.
-- Il registro HAR riguarda le risorse caricate durante la ricarica; i contenuti sono quelli
+- Il registro HAR osserva le richieste dalla ricarica fino al termine di screenshot e
+  snapshot, incluso lo scorrimento automatico. Riporta intervallo, timeout di caricamento,
+  richieste incomplete e scartate (massimo 3000 richieste, compresi i redirect). I corpi
+  non recuperabili, inclusi quelli dei redirect, sono segnalati senza attribuire loro
+  il contenuto della risposta finale. I contenuti sono quelli
   decodificati dal browser, non i byte grezzi trasmessi (per questo il formato è HAR e non WARC).
 - Se la connessione è ispezionata da software locale e si sceglie *Acquisisci comunque*, i dati
   del certificato descrivono il software di ispezione, non il sito. Il rilevamento è euristico:
@@ -355,3 +359,10 @@ git push origin v1.7.1
 
 [MIT](LICENSE) © 2026 Andrea Martin
 
+
+### Test del browser
+
+`npm ci --ignore-scripts`, `npx playwright install chromium` e `npm run test:browser`
+eseguono una prova dell'estensione in Chromium su un server HTTP locale: redirect,
+richieste generate dallo scorrimento e download completati o interrotti. Le dipendenze
+Node servono solo al collaudo e non vengono incluse nel pacchetto dell'estensione.
