@@ -39,7 +39,7 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     // Keep a redirect as the reload target to exercise requestId reuse.
     await page.evaluate(() => history.replaceState(null, '', '/redirect'));
     const shot = await worker.evaluate(async base => {
-      const [tab] = await chrome.tabs.query({ url: `${base}/*` });
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const settings = { ...DEFAULT_SETTINGS, format: 'png', features: {
         ...DEFAULT_SETTINGS.features, network: true, har: true, autoScroll: true
       }, advanced: { ...DEFAULT_SETTINGS.advanced, loadTimeout: 4000, settleDelay: 50 } };
