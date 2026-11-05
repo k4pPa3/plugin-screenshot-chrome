@@ -362,7 +362,7 @@ git push origin v1.7.1
 
 ### Test del browser
 
-`npm ci --ignore-scripts`, `npx playwright install chromium` e `npm run test:browser`
+`npm ci --ignore-scripts`, `npx playwright install chromium` e `npm run test:browser` (su Linux senza display: `xvfb-run -a npm run test:browser`)
 eseguono una prova dell'estensione in Chromium su un server HTTP locale: redirect,
 richieste generate dallo scorrimento e download completati o interrotti. Le dipendenze
 Node servono solo al collaudo e non vengono incluse nel pacchetto dell'estensione.

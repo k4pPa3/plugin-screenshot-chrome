@@ -7,6 +7,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { createHash } = require('node:crypto');
+const { spawn } = require('node:child_process');
+const { setTimeout: delay } = require('node:timers/promises');
 
 test('real extension: redirect, scroll traffic, completed and interrupted downloads', { timeout: 90000 }, async t => {
   const server = http.createServer((req, res) => {
@@ -26,13 +28,28 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'fwc-browser-'));
-  let browser;
+  let browser, connection, process;
   try {
     const root = path.resolve(__dirname, '../..');
-    browser = await chromium.launchPersistentContext(profile, {
-      channel: 'chromium', headless: true, acceptDownloads: true,
-      args: ['--no-sandbox', `--disable-extensions-except=${root}`, `--load-extension=${root}`]
-    });
+    // Launch a normal browser profile. Playwright's download interception
+    // overrides extension-suggested filenames, invalidating this particular test.
+    await fs.mkdir(path.join(profile, 'Default'), { recursive: true });
+    await fs.writeFile(path.join(profile, 'Default', 'Preferences'), JSON.stringify({
+      download: { default_directory: path.join(profile, 'downloads'), prompt_for_download: false }
+    }));
+    process = spawn(chromium.executablePath(), [
+      '--no-sandbox', '--no-first-run', '--no-default-browser-check', '--disable-dev-shm-usage',
+      `--user-data-dir=${profile}`, '--remote-debugging-port=0',
+      `--disable-extensions-except=${root}`, `--load-extension=${root}`, 'about:blank'
+    ], { stdio: 'ignore' });
+    let port;
+    for (let i = 0; i < 100; i++) {
+      try { port = (await fs.readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; break; }
+      catch { await delay(100); }
+    }
+    assert.ok(port, 'Chromium must expose its debugging port');
+    connection = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { noDefaults: true });
+    browser = connection.contexts()[0];
     const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
     const page = await browser.newPage();
     await page.goto(`${base}/redirect`);
@@ -60,10 +77,6 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     assert.ok(shot.collection.pending >= 1);
     t.diagnostic(`Chromium ${browser.browser().version()}: ${shot.entries.length} requests, scroll body hash verified`);
 
-    // Playwright normally assigns GUID names (allowAndName). Use normal
-    // browser filenames so the extension can enforce its integrity checks.
-    const cdp = await browser.newCDPSession(page);
-    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: path.join(profile, 'downloads') });
     const downloaded = await worker.evaluate(async () => {
       try { await download(new TextEncoder().encode('complete'), 'text/plain', 'fwc-test.txt', ''); }
       catch (err) {
@@ -96,7 +109,12 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     }, base);
     assert.match(interrupted, /Download not completed/);
   } finally {
-    if (browser) await browser.close();
+    if (connection) await connection.close();
+    if (process && process.exitCode === null) {
+      const exited = new Promise(resolve => process.once('exit', resolve));
+      process.kill('SIGKILL');
+      await exited;
+    }
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
     await fs.rm(profile, { recursive: true, force: true });
