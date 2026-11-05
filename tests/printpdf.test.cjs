@@ -53,3 +53,16 @@ test('digital PDF keeps a single tall page per 200 inches', async () => {
   });
   assert.equal(shotPages, 1);
 });
+
+test('landscape printable copy uses A4 landscape pages and larger scale', async () => {
+  const c = await context();
+  const portrait = c.printGeometry(1915 * 0.75, 5737 * 0.75, false);
+  const landscape = c.printGeometry(1915 * 0.75, 5737 * 0.75, true);
+  assert.ok(landscape.k > portrait.k * 1.3);
+  const { bytes } = c.buildPdf({
+    jpeg: fakeJpeg(1915, 5737), cssWidth: 1915, cssHeight: 5737,
+    info: { title: 'T', url: 'u', creator: 'c', date: new Date() }, cover: null,
+    print: { landscape: true, header: 'h', pageLabel: (n, t) => `${n}/${t}`, footer: ['f'] }
+  });
+  for (const b of latin(bytes).match(/\/MediaBox \[[^\]]+\]/g)) assert.equal(b, '/MediaBox [0 0 841.89 595.28]');
+});

@@ -11,7 +11,14 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 - Copia PDF per la stampa (`<id>.print.pdf`, facoltativa): lo screenshot adattato alla
   larghezza A4 e diviso in fasce sovrapposte di 20 px, con intestazione, numero di pagina
   e, su ogni foglio, nome e SHA-256 del PDF digitale di riferimento. È inclusa in report,
-  manifest e marca temporale.
+  manifest e marca temporale. Orientamento A4 verticale o orizzontale (Impostazioni >
+  Avanzate); l'orizzontale ingrandisce il testo di circa il 40%.
+
+### Corretto
+
+- Avvisi, note ed errori del popup sono salvati come chiavi di traduzione e mostrati nella
+  lingua impostata al momento della lettura, anche se la lingua cambia dopo la cattura.
+- Il tooltip dell'icona segue la lingua scelta nelle impostazioni, non solo quella del browser.
 
 ### Modificato
 

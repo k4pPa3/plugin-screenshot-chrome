@@ -98,7 +98,7 @@ function render(state) {
     setStatus("");
     renderInterception(state.interception || {});
   } else if (state.status === "error") {
-    setStatus(state.error, true);
+    setStatus(state.errorMsg ? tm(state.errorMsg) : state.error, true);
   } else {
     setStatus(t("popup.saved", { width: state.width, height: state.height }));
     addHash(t("popup.hashOf", { file: state.filename }), state.hash);
@@ -108,7 +108,7 @@ function render(state) {
       for (const text of list || []) {
         const el = document.createElement("div");
         el.className = cls;
-        el.textContent = text;
+        el.textContent = tm(text);
         resultEl.append(el);
       }
     }
@@ -176,7 +176,7 @@ async function startCapture(override) {
   // solo per gli errori immediati, come una cattura già in corso.
   const res = await chrome.runtime.sendMessage({ type: "capture", override });
   if (res?.busy) {
-    setStatus(res.error, true);
+    setStatus(t("err.busy"), true);
     button.disabled = true;
   }
 }

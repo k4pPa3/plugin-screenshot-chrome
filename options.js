@@ -87,6 +87,7 @@ function readForm() {
   }
   settings.advanced.subfolder = cleanSubfolder($("subfolder").value);
   settings.advanced.tlsCheck = $("tlsCheck").checked;
+  settings.advanced.printOrientation = $("printOrientation").value === "landscape" ? "landscape" : "portrait";
 }
 
 function renderVault() {
@@ -117,6 +118,7 @@ function fillForm() {
   for (const f of Object.keys(numberFields)) $(f).value = settings.advanced[f];
   $("subfolder").value = settings.advanced.subfolder;
   $("tlsCheck").checked = settings.advanced.tlsCheck !== false;
+  $("printOrientation").value = settings.advanced.printOrientation === "landscape" ? "landscape" : "portrait";
   renderVault();
   checkTsaWarning();
 }
@@ -212,7 +214,7 @@ $("language").addEventListener("change", async () => {
   if (dirty) show(saveStatus, t("options.unsaved"), "");
 });
 
-document.querySelectorAll("input, textarea").forEach((el) => el.addEventListener("input", () => {
+document.querySelectorAll("input, textarea, #printOrientation").forEach((el) => el.addEventListener("input", () => {
   if (el.id.startsWith("tsa")) checkTsaWarning();
   if (el.id !== "vaultPassword" || !locked) markDirty();
 }));

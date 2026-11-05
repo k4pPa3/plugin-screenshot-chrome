@@ -10,9 +10,14 @@ importScripts(
 chrome.runtime.onInstalled.addListener(() => { migratePlaintextSecrets().catch(() => {}); });
 
 // Lingua di messaggi e report: segue l'impostazione, anche quando cambia.
-getSettings().then((s) => setLanguage(s.language));
+// Anche il tooltip dell'icona: _locales seguirebbe solo la lingua del browser.
+function applyLanguage(preference) {
+  setLanguage(preference);
+  try { chrome.action?.setTitle?.({ title: t("action.title") }); } catch (_) {}
+}
+getSettings().then((s) => applyLanguage(s.language));
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.settings) setLanguage(changes.settings.newValue?.language);
+  if (area === "local" && changes.settings) applyLanguage(changes.settings.newValue?.language);
 });
 
 const PROTOCOL_VERSION = "1.3";
@@ -641,14 +646,14 @@ async function run(tab, options = {}) {
 
   let tsaConfig = null;
   if (features.timestamp) {
-    if (!settings.tsa.url) throw new Error(t("err.tsaNotConfigured"));
+    if (!settings.tsa.url) throw i18nError("err.tsaNotConfigured");
     const ok = await chrome.permissions.contains({ origins: [originPattern(settings.tsa.url)] });
-    if (!ok) throw new Error(t("err.tsaNoPermission"));
+    if (!ok) throw i18nError("err.tsaNoPermission");
     // Le credenziali stanno solo in memoria (vedi lib/vault.js).
     const secret = (await getSessionSecrets())?.[settings.tsa.preset] || {};
     const needsSecret = !!(settings.tsa.username || settings.tsa.headerName);
     if (needsSecret && !secret.password && !secret.headerValue) {
-      throw new Error(t(settings.secretMode === "encrypted" ? "err.tsaLocked" : "err.tsaMissing"));
+      throw i18nError(settings.secretMode === "encrypted" ? "err.tsaLocked" : "err.tsaMissing");
     }
     tsaConfig = { ...settings.tsa, ...secret };
   }
@@ -702,6 +707,7 @@ async function run(tab, options = {}) {
         info: { title: acq.title, url: acq.url, creator: acq.extension, date: shot.date },
         cover: features.cover ? buildCover(acq, related) : null,
         print: {
+          landscape: settings.advanced.printOrientation === "landscape",
           header: acq.title || acq.url,
           pageLabel: (i, total) => t("print.page", { n: i, total }),
           footer: [
@@ -730,18 +736,18 @@ async function run(tab, options = {}) {
     target: `${base}.manifest.sha256`, file: `${base}.tsr`,
     receipt: `${base}.timestamp.json`
   };
-  if (shot.networkError) warnings.push(t("warn.network", { error: shot.networkError }));
+  if (shot.networkError) warnings.push(msg("warn.network", { error: shot.networkError }));
   const tls = shot.network?.tlsInterception;
   if (tls && tls.status !== "none") {
-    warnings.push(t("warn.tlsInterception", { issuer: tls.product || tls.issuer }));
+    warnings.push(msg("warn.tlsInterception", { issuer: tls.product || tls.issuer }));
   } else if (tls && options.afterInterception) {
-    notes.push(t("note.tlsClean"));
+    notes.push(msg("note.tlsClean"));
   }
-  if (urlChanged) warnings.push(t("warn.urlChanged", { url: acq.url }));
-  if (shot.fullHeight) warnings.push(t("warn.truncated", { height: shot.height, full: shot.fullHeight }));
+  if (urlChanged) warnings.push(msg("warn.urlChanged", { url: acq.url }));
+  if (shot.fullHeight) warnings.push(msg("warn.truncated", { height: shot.height, full: shot.fullHeight }));
   const skew = shot.network?.clockSkewSeconds;
   if (Number.isFinite(skew) && Math.abs(skew) > 10) {
-    warnings.push(t("warn.clock", { direction: t(skew > 0 ? "clock.behind" : "clock.ahead"), seconds: Math.abs(skew) }));
+    warnings.push(msg("warn.clock", { direction: msg(skew > 0 ? "clock.behind" : "clock.ahead"), seconds: Math.abs(skew) }));
   }
 
   const enc = new TextEncoder();
@@ -768,11 +774,11 @@ async function run(tab, options = {}) {
       outputs.push({ name: `${base}.tsr`, bytes: ts.tsr, mime: "application/timestamp-reply" });
       acq.timestamp.verificationText = timestampCheckMessage(ts);
       // Solo una marca verificata non genera avviso.
-      if (ts.verification === "verified") notes.push(acq.timestamp.verificationText);
-      else warnings.push(acq.timestamp.verificationText);
+      if (ts.verification === "verified") notes.push(timestampCheckMsg(ts));
+      else warnings.push(timestampCheckMsg(ts));
     } catch (err) {
       acq.timestamp = { ...acq.timestamp, status: "failed", error: err.message, targetSha256: targetHash };
-      warnings.push(t("warn.tsa", { error: err.message }));
+      warnings.push(msg("warn.tsa", { error: err.message }));
     }
     const { tsr, ...timestampResult } = acq.timestamp;
     const receipt = { schema: "full-page-screenshot/timestamp@1", ...timestampResult };
@@ -862,7 +868,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
       [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab || !isCapturableUrl(tab.url)) {
-        throw new Error(t("err.internalPage"));
+        throw i18nError("err.internalPage");
       }
       await setCaptureState({ status: "running", title: tab.title || "", url: tab.url || "" });
       setBadge("…", "#1a73e8");
@@ -883,7 +889,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: false, interception: err.info, error });
         return;
       }
-      await setCaptureState({ status: "error", title: tab?.title || "", url: tab?.url || "", error });
+      await setCaptureState({ status: "error", title: tab?.title || "", url: tab?.url || "", error,
+        errorMsg: err?.code && I18N.en[err.code] ? msg(err.code, err.params || {}) : null });
       setBadge("ERR", "#d93025");
       sendResponse({ ok: false, error });
     } finally {
