@@ -6,6 +6,13 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 
 ## [1.6.0] - Non rilasciata
 
+### Aggiunto
+
+- Copia PDF per la stampa (`<id>.print.pdf`, facoltativa): lo screenshot adattato alla
+  larghezza A4 e diviso in fasce sovrapposte di 20 px, con intestazione, numero di pagina
+  e, su ogni foglio, nome e SHA-256 del PDF digitale di riferimento. È inclusa in report,
+  manifest e marca temporale.
+
 ### Modificato
 
 - Nuovo nome: **Forensic Web Capture** (prima "Full Page Screenshot"); pacchetto

@@ -14,10 +14,13 @@ function setStatus(text, isError = false) {
   status.className = isError ? "error" : "";
 }
 
+// Copertina e copia per la stampa esistono solo nel formato PDF.
 function syncCoverSwitch() {
-  const cover = document.querySelector('[data-feature="cover"]');
-  cover.disabled = formatEl.value !== "pdf";
-  cover.closest(".switch").classList.toggle("disabled", cover.disabled);
+  for (const name of ["cover", "printPdf"]) {
+    const el = document.querySelector(`[data-feature="${name}"]`);
+    el.disabled = formatEl.value !== "pdf";
+    el.closest(".switch").classList.toggle("disabled", el.disabled);
+  }
 }
 
 async function showTsaHint() {

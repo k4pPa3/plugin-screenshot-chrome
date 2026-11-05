@@ -682,7 +682,7 @@ async function run(tab, options = {}) {
   if (shot.mhtml) related.push(await fileEntry(`${base}.mhtml`, "mhtml", t("role.mhtml"), shot.mhtml, "multipart/related"));
   if (shot.html) related.push(await fileEntry(`${base}.html`, "html", t("role.html"), shot.html, "text/html;charset=utf-8"));
 
-  let main;
+  let main, printEntry = null;
   if (format === "pdf") {
     const pdf = buildPdf({
       jpeg: shot.image,
@@ -692,10 +692,31 @@ async function run(tab, options = {}) {
       cover: features.cover ? buildCover(acq, related) : null
     });
     main = await fileEntry(`${base}.pdf`, "screenshot", t("role.pdf"), pdf.bytes, "application/pdf");
+    // Copia A4 per la stampa, derivata dallo stesso JPEG: ogni foglio riporta
+    // nome e impronta del PDF digitale, che resta il reperto di riferimento.
+    if (features.printPdf) {
+      const printPdf = buildPdf({
+        jpeg: shot.image,
+        cssWidth: shot.width,
+        cssHeight: shot.height,
+        info: { title: acq.title, url: acq.url, creator: acq.extension, date: shot.date },
+        cover: features.cover ? buildCover(acq, related) : null,
+        print: {
+          header: acq.title || acq.url,
+          pageLabel: (i, total) => t("print.page", { n: i, total }),
+          footer: [
+            `${acq.url}  -  ${shot.date.toISOString()}`,
+            t("print.footer", { file: main.name, hash: main.sha256 })
+          ]
+        }
+      });
+      printEntry = await fileEntry(`${base}.print.pdf`, "print", t("role.printPdf"), printPdf.bytes, "application/pdf");
+    }
   } else {
     const ext = format === "jpeg" ? "jpg" : "png";
     main = await fileEntry(`${base}.${ext}`, "screenshot", t("role.image", { format: format.toUpperCase() }), shot.image, `image/${format}`);
   }
+  if (printEntry) related.push(printEntry);
   acq.files.push(main, ...related);
 
   const outputs = [main, ...related];
