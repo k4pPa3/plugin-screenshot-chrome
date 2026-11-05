@@ -87,6 +87,11 @@ function readForm() {
   }
   settings.advanced.subfolder = cleanSubfolder($("subfolder").value);
   settings.advanced.tlsCheck = $("tlsCheck").checked;
+  settings.advanced.custodyRequired = $("custodyRequired").checked;
+  settings.advanced.tabHistory = $("tabHistory").checked;
+  settings.advanced.listExtensions = $("listExtensions").checked;
+  settings.custody = { ...settings.custody, ...cleanCustody({ ...settings.custody,
+    operator: $("custodyOperator").value, organization: $("custodyOrganization").value }) };
   settings.advanced.printOrientation = $("printOrientation").value === "landscape" ? "landscape" : "portrait";
 }
 
@@ -118,6 +123,11 @@ function fillForm() {
   for (const f of Object.keys(numberFields)) $(f).value = settings.advanced[f];
   $("subfolder").value = settings.advanced.subfolder;
   $("tlsCheck").checked = settings.advanced.tlsCheck !== false;
+  $("custodyRequired").checked = !!settings.advanced.custodyRequired;
+  $("tabHistory").checked = !!settings.advanced.tabHistory;
+  $("listExtensions").checked = !!settings.advanced.listExtensions;
+  $("custodyOperator").value = settings.custody.operator || "";
+  $("custodyOrganization").value = settings.custody.organization || "";
   $("printOrientation").value = settings.advanced.printOrientation === "landscape" ? "landscape" : "portrait";
   renderVault();
   checkTsaWarning();
@@ -180,8 +190,11 @@ async function store() {
   }
   await chrome.storage.session.set({ tsaSecrets: secrets });
 
-  const { tsa, tsaProfiles, advanced, secretMode } = settings;
-  settings = await updateSettings((s) => Object.assign(s, { tsa, tsaProfiles, advanced, secretMode }));
+  const { tsa, tsaProfiles, advanced, secretMode, custody } = settings;
+  settings = await updateSettings((s) => {
+    Object.assign(s, { tsa, tsaProfiles, advanced, secretMode });
+    s.custody = { ...s.custody, operator: custody.operator, organization: custody.organization };
+  });
   dirty = false;
   $("subfolder").value = settings.advanced.subfolder;
   renderVault();
@@ -218,6 +231,13 @@ document.querySelectorAll("input, textarea, #printOrientation").forEach((el) => 
   if (el.id.startsWith("tsa")) checkTsaWarning();
   if (el.id !== "vaultPassword" || !locked) markDirty();
 }));
+
+// Il permesso "management" va chiesto durante il clic dell'utente.
+$("listExtensions").addEventListener("change", async (e) => {
+  if (!e.target.checked) return;
+  const granted = await chrome.permissions.request({ permissions: ["management"] }).catch(() => false);
+  if (!granted) e.target.checked = false;
+});
 
 window.addEventListener("beforeunload", (e) => {
   if (dirty) e.preventDefault();

@@ -15,7 +15,12 @@
     .icon-btn:hover { background: var(--hover); }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .features { margin: 12px 0; border-top: 1px solid var(--border); padding-top: 8px; }
-    .features .hint { font-size: 11px; color: var(--muted); }
+    .features .hint, .custody .hint { font-size: 11px; color: var(--muted); }
+    .custody { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; font-size: 12px; }
+    .custody summary { cursor: pointer; font-weight: 600; }
+    .custody .field { margin-top: 6px; }
+    .custody textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; }
+    .custody.missing summary { color: var(--danger); }
     #status { margin-top: 10px; min-height: 1em; font-size: 12px; }
     #status.error { color: var(--danger); }
     .warn { color: var(--warn); font-size: 11.5px; margin-top: 6px; }
@@ -69,6 +74,13 @@
     </label>
   </div>
 
+  <details class="custody" id="custodyBox">
+    <summary><span data-i18n="popup.custody"></span> <span class="hint" id="custodySummary"></span></summary>
+    <label class="field"><span data-i18n="row.operator"></span><input type="text" data-custody="operator" maxlength="120" spellcheck="false"></label>
+    <label class="field"><span data-i18n="row.caseRef"></span><input type="text" data-custody="caseRef" maxlength="120" spellcheck="false"></label>
+    <label class="field"><span data-i18n="row.purpose"></span><textarea data-custody="notes" maxlength="1000" rows="2"></textarea></label>
+  </details>
+
   <div class="features">
     <label class="switch"><input type="checkbox" data-feature="cover"><span class="track"></span><span class="text"><span data-i18n="feature.cover"></span> <span class="hint" data-i18n="feature.cover.hint"></span></span></label>
     <label class="switch"><input type="checkbox" data-feature="printPdf"><span class="track"></span><span class="text"><span data-i18n="feature.printPdf"></span> <span class="hint" data-i18n="feature.printPdf.hint"></span></span></label>
@@ -76,6 +88,7 @@
     <label class="switch"><input type="checkbox" data-feature="mhtml"><span class="track"></span><span class="text" data-i18n="feature.mhtml"></span></label>
     <label class="switch"><input type="checkbox" data-feature="html"><span class="track"></span><span class="text" data-i18n="feature.html"></span></label>
     <label class="switch"><input type="checkbox" data-feature="network"><span class="track"></span><span class="text"><span data-i18n="feature.network"></span> <span class="hint" data-i18n="feature.network.hint"></span></span></label>
+    <label class="switch"><input type="checkbox" data-feature="har"><span class="track"></span><span class="text"><span data-i18n="feature.har"></span> <span class="hint" data-i18n="feature.har.hint"></span></span></label>
     <label class="switch"><input type="checkbox" data-feature="timestamp"><span class="track"></span><span class="text"><span data-i18n="feature.timestamp"></span> <span class="hint" id="tsaHint"></span></span></label>
     <label class="switch"><input type="checkbox" data-feature="jsonReport"><span class="track"></span><span class="text" data-i18n="feature.jsonReport"></span></label>
     <label class="switch"><input type="checkbox" data-feature="zip"><span class="track"></span><span class="text" data-i18n="feature.zip"></span></label>

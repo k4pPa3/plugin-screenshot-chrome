@@ -3,7 +3,8 @@
 
 importScripts(
   "lib/i18n.js", "lib/locales/en.js", "lib/locales/it.js", "lib/locales/fr.js", "lib/locales/es.js",
-  "lib/common.js", "lib/pdf.js", "lib/zip.js", "lib/tsa.js", "lib/tsaroots.js", "lib/tsaverify.js", "lib/vault.js"
+  "lib/common.js", "lib/pdf.js", "lib/zip.js", "lib/tsa.js", "lib/tsaroots.js", "lib/tsaverify.js", "lib/vault.js",
+  "lib/har.js", "lib/integrity.js"
 );
 
 // Aggiornando da una versione che salvava le credenziali in chiaro, le toglie dal disco.
@@ -121,12 +122,14 @@ async function collectNetworkInfo(target, settings) {
   const { frameTree } = await send(target, "Page.getFrameTree");
   const mainFrame = frameTree.frame.id;
   const net = { redirects: [], document: null, certificate: null };
+  const har = settings.features.har ? createHarRecorder() : null;
 
   let onLoad;
   const loaded = new Promise((r) => { onLoad = r; });
   const listener = (source, method, params) => {
     if (source.tabId !== target.tabId) return;
     if (method === "Page.loadEventFired") onLoad();
+    if (har && method.startsWith("Network.")) har.onEvent(method, params);
     if (params?.type !== "Document" || params.frameId !== mainFrame) return;
     if (method === "Network.requestWillBeSent" && params.redirectResponse) {
       const r = params.redirectResponse;
@@ -166,13 +169,36 @@ async function collectNetworkInfo(target, settings) {
 
   chrome.debugger.onEvent.addListener(listener);
   try {
-    await send(target, "Network.enable");
+    // Buffer più ampi: i contenuti servono ancora dopo il caricamento.
+    await send(target, "Network.enable", har ? { maxTotalBufferSize: 200 * 1024 * 1024, maxResourceBufferSize: 20 * 1024 * 1024 } : {});
     await send(target, "Network.setBypassServiceWorker", { bypass: true }).catch(() => {});
     await send(target, "Page.reload", { ignoreCache: true });
     await Promise.race([loaded, sleep(settings.advanced.loadTimeout)]);
     await sleep(1500);
   } finally {
     chrome.debugger.onEvent.removeListener(listener);
+  }
+
+  // Contenuti delle risposte: impronta di ciascuno e, entro i limiti, copia
+  // nell'HAR. Vanno letti prima di staccare il debugger.
+  if (har) {
+    let total = 0;
+    const entries = har.entries();
+    for (const e of entries) {
+      if (!e.finished || e.failed) continue;
+      try {
+        const body = await send(target, "Network.getResponseBody", { requestId: e.requestId });
+        const bytes = harBodyBytes(body);
+        e.bodySize = bytes.length;
+        e.sha256 = await sha256Hex(bytes);
+        if (bytes.length > HAR_MAX_BODY_EACH) e.bodyOmitted = "size";
+        else if (total + bytes.length > HAR_MAX_BODY_TOTAL) e.bodyOmitted = "total";
+        else { total += bytes.length; e.bodyText = body.body; e.bodyBase64 = !!body.base64Encoded; }
+      } catch (_) {
+        e.bodyOmitted = "unavailable";
+      }
+    }
+    net.harEntries = entries;
   }
 
   // Confronta l'orologio del PC con l'header Date del server (precisione 1 s).
@@ -239,11 +265,12 @@ async function autoScroll(target, world, settings) {
   })()`, limit + 5000);
 }
 
-async function capture(tab, settings, { override = false } = {}) {
+async function capture(tab, settings, { override = false, log = () => {} } = {}) {
   const { features, advanced } = settings;
   const width = Number(settings.width) || 0;
   const target = { tabId: tab.id };
   await chrome.debugger.attach(target, PROTOCOL_VERSION);
+  log("debugger.attach", { url: redactUrl(tab.url) });
 
   const result = { network: null, networkError: null };
   try {
@@ -251,19 +278,34 @@ async function capture(tab, settings, { override = false } = {}) {
 
     if (features.network) {
       try {
+        log("network.reload");
         result.network = await collectNetworkInfo(target, settings);
+        if (result.network.harEntries) {
+          result.harEntries = result.network.harEntries;
+          delete result.network.harEntries;
+          log("network.har", { requests: result.harEntries.length,
+            hashed: result.harEntries.filter((e) => e.sha256).length });
+        }
+        const d = result.network.document;
+        log("network.response", d ? { status: d.status, ip: d.remoteIPAddress, redirects: result.network.redirects.length } : { document: null });
       } catch (err) {
         result.networkError = err.message;
+        log("network.error", { error: err.message });
       }
       const tls = result.network?.tlsInterception;
+      if (tls) log("tls.check", { status: tls.status, signals: tls.signals.join(",") });
       if (tls && tls.status !== "none") {
         if (advanced.tlsCheck && !override) throw new TlsInterceptionError(tls);
+        log("tls.override", { confirmed: override });
         tls.userOverride = override;
       }
     }
     // Dopo l'eventuale ricarica: il mondo isolato è legato al documento.
     const world = await createIsolatedWorld(target);
-    if (features.autoScroll) await autoScroll(target, world, settings);
+    if (features.autoScroll) {
+      log("page.autoScroll");
+      await autoScroll(target, world, settings);
+    }
 
     const initial = await send(target, "Page.getLayoutMetrics");
     const viewport = initial.cssLayoutViewport || initial.layoutViewport;
@@ -301,6 +343,7 @@ async function capture(tab, settings, { override = false } = {}) {
       if (h <= pageHeight) break;
       pageHeight = h; // la pagina ha caricato altro contenuto
     }
+    log("page.layout", { width: pageWidth, height: pageHeight, truncatedFrom: result.fullHeight || null });
     await evaluate(target, world, "window.scrollTo(0, 0)", 5000);
     await sleep(200);
 
@@ -319,6 +362,7 @@ async function capture(tab, settings, { override = false } = {}) {
     result.image = base64ToBytes(data);
     result.width = pageWidth;
     result.height = pageHeight;
+    log("screenshot", { format: imageFormat, bytes: result.image.length });
 
     // Indirizzo e titolo effettivi al momento dello screenshot: la pagina
     // potrebbe aver cambiato URL durante la cattura.
@@ -326,16 +370,26 @@ async function capture(tab, settings, { override = false } = {}) {
     const entry = history.entries[history.currentIndex] || {};
     result.url = entry.url || tab.url || "";
     result.title = entry.title || tab.title || "";
+    // Come si è arrivati alla pagina: le ultime voci della scheda fino a quella
+    // attuale (facoltativo, può rivelare altre pagine visitate).
+    if (advanced.tabHistory) {
+      result.history = history.entries.slice(0, history.currentIndex + 1).slice(-10).map((e) => ({
+        url: redactUrl(e.url), title: cleanText(e.title), transition: e.transitionType || ""
+      }));
+      log("tab.history", { entries: result.history.length });
+    }
 
     if (features.mhtml) {
       const { data: mhtml } = await send(target, "Page.captureSnapshot", { format: "mhtml" });
       result.mhtml = new TextEncoder().encode(mhtml);
+      log("snapshot.mhtml", { bytes: result.mhtml.length });
     }
     if (features.html) {
       const html = await evaluate(target, world,
         `(document.doctype ? new XMLSerializer().serializeToString(document.doctype) + "\\n" : "") + document.documentElement.outerHTML`,
         30000);
       result.html = new TextEncoder().encode(protectHtml(String(html)));
+      log("snapshot.html", { bytes: result.html.length });
     }
   } finally {
     try {
@@ -344,6 +398,7 @@ async function capture(tab, settings, { override = false } = {}) {
     try {
       await chrome.debugger.detach(target);
     } catch (_) {}
+    log("debugger.detach");
   }
   return result;
 }
@@ -414,6 +469,26 @@ function networkRows(net, error, compact = false) {
   return rows;
 }
 
+function custodyRows(acq) {
+  const c = acq.custody || {};
+  const v = (x) => x || t("custody.notGiven");
+  return [
+    [t("row.operator"), v(c.operator)],
+    [t("row.organization"), v(c.organization)],
+    [t("row.caseRef"), v(c.caseRef)],
+    [t("row.purpose"), v(c.notes)]
+  ];
+}
+
+// Una riga per passo: ora UTC, codice del passo (stabile, non tradotto) e dettagli.
+function logLines(log) {
+  return (log || []).map((e) => {
+    const detail = e.detail ? Object.entries(e.detail).filter(([, x]) => x !== null && x !== undefined && x !== "")
+      .map(([k, x]) => `${k}=${cleanText(x)}`).join(" ") : "";
+    return `${e.at}  ${e.step.padEnd(18)} ${detail}`.trimEnd();
+  });
+}
+
 function pageRows(acq) {
   const rows = [[t("row.url"), acq.url]];
   if (acq.initialUrl) rows.push([t("row.initialUrl"), t("row.initialUrl.value", { url: acq.initialUrl })]);
@@ -436,14 +511,37 @@ function timeRows(acq) {
 }
 
 function envRows(acq) {
-  return [
+  const env = acq.environment || {};
+  const rows = [
     [t("row.browser"), acq.userAgent],
-    [t("row.extension"), acq.extension]
+    [t("row.extension"), acq.extension],
+    [t("row.codeFingerprint"), env.code ? `SHA-256 ${env.code.sha256}` : t("value.notAvailable")]
   ];
+  if (env.extensions) {
+    const altering = env.extensions.filter((x) => x.canAlterPages).length;
+    rows.push([t("row.otherExtensions"), t("env.extensions", { n: env.extensions.length, altering })]);
+  } else if (env.extensionsError) {
+    rows.push([t("row.otherExtensions"), t("value.notAvailable")]);
+  }
+  return rows;
+}
+
+function extensionRows(acq) {
+  return (acq.environment?.extensions || []).map((x) => [
+    x.name, `${x.id} ${x.version}${x.canAlterPages ? " — " + t("env.canAlter") : ""}${x.sensitive.length ? " [" + x.sensitive.join(", ") + "]" : ""}`
+  ]);
+}
+
+function historyRows(acq) {
+  return (acq.history || []).map((h, i, all) => [
+    i === all.length - 1 ? t("history.current") : t("history.n", { n: i + 1 }),
+    `${h.url}${h.transition ? " (" + h.transition + ")" : ""}`
+  ]);
 }
 
 function buildCover(acq, relatedFiles) {
   const sections = [
+    { title: t("cover.custody"), rows: custodyRows(acq) },
     { title: t("cover.page"), rows: pageRows(acq) },
     { title: t("cover.time"), rows: timeRows(acq) },
     { title: t("cover.env"), rows: envRows(acq) }
@@ -502,12 +600,16 @@ function timestampRows(ts) {
 
 function buildReportText(acq) {
   const sections = [
+    [t("report.custody"), custodyRows(acq)],
     [t("report.page"), pageRows(acq)],
     [t("report.time"), timeRows(acq)],
     [t("report.env"), envRows(acq)]
   ];
   if (acq.features.network) sections.push([t("report.network"), networkRows(acq.network, acq.networkError)]);
-  if (acq.timestamp) sections.push([t("report.timestamp"), timestampRows(acq.timestamp)]);
+  if (acq.history?.length) sections.push([t("report.history"), historyRows(acq)]);
+  if (acq.environment?.extensions?.length) sections.push([t("report.extensions"), extensionRows(acq)]);
+  if (acq.timestamp) sections.push([t("report.timestamp"), [...timestampRows(acq.timestamp),
+    [t("row.tsaQualified"), t(acq.tsaQualified ? "tsa.qualified.yes" : "tsa.qualified.no")]]]);
   sections.push([t("report.files"), acq.files.flatMap((f) => [
     [f.role, f.name],
     [`  ${t("row.fileSize")}`, t("value.bytes", { n: f.size })],
@@ -532,6 +634,11 @@ function buildReportText(acq) {
       lines.push(`${cleanText(k)}: ${String(v).split("\n").map(cleanText).join("\r\n  ")}`);
     }
     lines.push("");
+  }
+
+  if (acq.log?.length) {
+    heading(t("report.log"));
+    lines.push(...logLines(acq.log), "", t("report.logNote"), "");
   }
 
   heading(t("report.verify"));
@@ -568,12 +675,17 @@ function buildReportJson(acq) {
       fullHeight: acq.fullHeight,
       emulatedWidth: acq.emulatedWidth || null
     },
-    environment: { userAgent: acq.userAgent, extension: acq.extension },
+    custody: acq.custody || null,
+    environment: { userAgent: acq.userAgent, extension: acq.extension,
+      code: acq.environment?.code || null, extensions: acq.environment?.extensions || null },
+    history: acq.history,
+    tsaQualified: acq.tsaQualified,
     options: { format: acq.format, ...acq.features },
     network: acq.features.network ? (acq.network || { error: acq.networkError }) : null,
     timestamp: acq.timestamp ? (({ tsr, ...rest }) => rest)(acq.timestamp) : null,
     language: currentLanguage,
-    files: acq.files.map(({ name, type, role, size, sha256 }) => ({ name, type, role, size, sha256 }))
+    files: acq.files.map(({ name, type, role, size, sha256 }) => ({ name, type, role, size, sha256 })),
+    log: acq.log || []
   }, null, 2);
 }
 
@@ -644,6 +756,22 @@ async function run(tab, options = {}) {
   const { features } = settings;
   const format = settings.format;
 
+  // Catena di custodia: chi acquisisce, per quale caso e perché.
+  const custody = cleanCustody(settings.custody);
+  if (settings.advanced.custodyRequired && (!custody.operator || !custody.caseRef)) {
+    throw i18nError("err.custodyMissing");
+  }
+
+  // Registro delle operazioni: ora UTC di ogni passo, incluso nei report e
+  // quindi vincolato dal manifest e dalla marca temporale.
+  const log = [];
+  const step = (name, detail) => log.push({ at: new Date().toISOString(), step: name, ...(detail ? { detail } : {}) });
+  step("acquisition.start", { operator: custody.operator || null, caseRef: custody.caseRef || null });
+  const environment = await collectEnvironment(settings);
+  step("environment", { code: environment.code?.sha256 || null,
+    extensions: environment.extensions ? environment.extensions.length : null,
+    canAlterPages: environment.extensions ? environment.extensions.filter((x) => x.canAlterPages).length : null });
+
   let tsaConfig = null;
   if (features.timestamp) {
     if (!settings.tsa.url) throw i18nError("err.tsaNotConfigured");
@@ -658,7 +786,7 @@ async function run(tab, options = {}) {
     tsaConfig = { ...settings.tsa, ...secret };
   }
 
-  const shot = await capture(tab, settings, options);
+  const shot = await capture(tab, settings, { ...options, log: step });
   const manifest = chrome.runtime.getManifest();
   const withoutHash = (u) => String(u || "").split("#")[0];
   const urlChanged = withoutHash(shot.url) !== withoutHash(tab.url);
@@ -679,13 +807,23 @@ async function run(tab, options = {}) {
     network: shot.network,
     networkError: shot.networkError,
     files: [],
-    timestamp: null
+    timestamp: null,
+    custody,
+    log,
+    environment,
+    history: shot.history || null,
+    tsaQualified: !!TSA_PRESETS[settings.tsa.preset]?.qualified
   };
 
   const base = `capture_${fileTimestamp(shot.date)}_${crypto.randomUUID()}`;
   const related = [];
   if (shot.mhtml) related.push(await fileEntry(`${base}.mhtml`, "mhtml", t("role.mhtml"), shot.mhtml, "multipart/related"));
   if (shot.html) related.push(await fileEntry(`${base}.html`, "html", t("role.html"), shot.html, "text/html;charset=utf-8"));
+  if (shot.harEntries) {
+    const har = buildHar(shot.harEntries, { creator: manifest.name, version: manifest.version,
+      pageTitle: acq.title, startedAt: shot.date.toISOString(), redacted: t("value.redacted") });
+    related.push(await fileEntry(`${base}.har`, "har", t("role.har"), new TextEncoder().encode(JSON.stringify(har)), "application/json"));
+  }
 
   let main, printEntry = null;
   if (format === "pdf") {
@@ -724,6 +862,7 @@ async function run(tab, options = {}) {
   }
   if (printEntry) related.push(printEntry);
   acq.files.push(main, ...related);
+  for (const f of acq.files) step("evidence.hash", { file: f.name, sha256: f.sha256 });
 
   const outputs = [main, ...related];
   const warnings = [];
@@ -744,6 +883,9 @@ async function run(tab, options = {}) {
     notes.push(msg("note.tlsClean"));
   }
   if (urlChanged) warnings.push(msg("warn.urlChanged", { url: acq.url }));
+  const altering = (environment.extensions || []).filter((x) => x.canAlterPages);
+  if (altering.length) warnings.push(msg("warn.extensions", { n: altering.length, names: altering.slice(0, 3).map((x) => x.name).join(", ") }));
+  if (environment.extensionsError) warnings.push(msg("warn.extensionsUnavailable"));
   if (shot.fullHeight) warnings.push(msg("warn.truncated", { height: shot.height, full: shot.fullHeight }));
   const skew = shot.network?.clockSkewSeconds;
   if (Number.isFinite(skew) && Math.abs(skew) > 10) {
@@ -751,6 +893,9 @@ async function run(tab, options = {}) {
   }
 
   const enc = new TextEncoder();
+  // Ultimo passo registrabile nei report: quelli successivi (manifest, TSA)
+  // finiscono nella ricevuta della marca temporale.
+  step("report.build");
   outputs.push({ name: `${base}.report.txt`, bytes: enc.encode(buildReportText(acq)), mime: "text/plain;charset=utf-8" });
   if (features.jsonReport) {
     outputs.push({ name: `${base}.report.json`, bytes: enc.encode(buildReportJson(acq)), mime: "application/json" });
@@ -766,8 +911,12 @@ async function run(tab, options = {}) {
   };
   outputs.push(evidenceManifest);
 
+  const receiptLog = [];
+  const late = (name, detail) => receiptLog.push({ at: new Date().toISOString(), step: name, ...(detail ? { detail } : {}) });
   if (features.timestamp) {
     const targetHash = await sha256Hex(evidenceManifest.bytes);
+    late("manifest.build", { sha256: targetHash });
+    late("tsa.request", { url: tsaConfig.url });
     try {
       const ts = await requestTimestamp(await sha256Bytes(evidenceManifest.bytes), tsaConfig);
       acq.timestamp = { ...acq.timestamp, ...ts, targetSha256: targetHash };
@@ -781,7 +930,9 @@ async function run(tab, options = {}) {
       warnings.push(msg("warn.tsa", { error: err.message }));
     }
     const { tsr, ...timestampResult } = acq.timestamp;
-    const receipt = { schema: "full-page-screenshot/timestamp@1", ...timestampResult };
+    late(acq.timestamp.status === "failed" ? "tsa.failed" : "tsa.response", acq.timestamp.status === "failed"
+      ? { error: acq.timestamp.error } : { status: acq.timestamp.status, verification: acq.timestamp.verification, genTime: acq.timestamp.genTime });
+    const receipt = { schema: "full-page-screenshot/timestamp@1", ...timestampResult, log: receiptLog };
     outputs.push({ name: `${base}.timestamp.json`, bytes: enc.encode(JSON.stringify(receipt, null, 2)), mime: "application/json" });
   }
 

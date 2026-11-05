@@ -112,6 +112,33 @@
   </section>
 
   <section>
+    <h2 data-i18n="options.custody.title"></h2>
+    <p class="desc" data-i18n="options.custody.desc"></p>
+    <div class="grid">
+      <label class="field">
+        <span data-i18n="row.operator"></span>
+        <input type="text" id="custodyOperator" maxlength="120" spellcheck="false">
+      </label>
+      <label class="field">
+        <span data-i18n="row.organization"></span>
+        <input type="text" id="custodyOrganization" maxlength="160" spellcheck="false">
+      </label>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="tabHistory"><span class="track"></span>
+      <span class="text"><span data-i18n="options.custody.history"></span><br><span class="desc" data-i18n="options.custody.history.help"></span></span>
+    </label>
+    <label class="switch">
+      <input type="checkbox" id="listExtensions"><span class="track"></span>
+      <span class="text"><span data-i18n="options.custody.extensions"></span><br><span class="desc" data-i18n="options.custody.extensions.help"></span></span>
+    </label>
+    <label class="switch">
+      <input type="checkbox" id="custodyRequired"><span class="track"></span>
+      <span class="text"><span data-i18n="options.custody.required"></span><br><span class="desc" data-i18n="options.custody.required.help"></span></span>
+    </label>
+  </section>
+
+  <section>
     <h2 data-i18n="options.advanced.title"></h2>
     <p class="desc" data-i18n="options.advanced.desc"></p>
     <div class="grid">

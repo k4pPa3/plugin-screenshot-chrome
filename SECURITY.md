@@ -43,6 +43,14 @@ fornisce e il servizio di marca temporale. In particolare:
   Certificate Transparency o proviene da un emittente di ispezione noto; procedendo comunque
   l'esito e la scelta dell'utente sono registrati. Il rilevamento è euristico, non una
   verifica del certificato contro fonti esterne.
+- **Integrità dell'ambiente**: il report riporta l'impronta SHA-256 del codice dell'estensione
+  (confrontabile con `code-fingerprint-<versione>.txt` della release) e, con il permesso
+  facoltativo `management`, le altre estensioni attive, segnalando quelle che possono leggere o
+  modificare le pagine. Il permesso è chiesto solo attivando l'opzione e serve solo a leggere
+  l'elenco.
+- **HAR**: gli header `Cookie`, `Set-Cookie`, `Authorization` e `Proxy-Authorization` sono
+  oscurati; i contenuti delle risposte sono incorporati entro 10 MB ciascuno e 50 MB in tutto,
+  oltre restano solo le impronte.
 - **Integrità del pacchetto**: la marca riguarda un manifest di reperti e report immutabili.
   L’esito TSA resta in una ricevuta separata; il riepilogo finale include tutti gli altri file.
 - **Nomi e comandi**: nomi tecnici con UUID, indipendenti dal titolo della pagina; quoting

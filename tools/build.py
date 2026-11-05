@@ -1,8 +1,11 @@
 """Crea dist/forensic-web-capture-<versione>.zip con i soli file dell'estensione.
 
-Uso: python tools/build.py
+Uso: python tools/build.py               crea pacchetto e impronta del codice
+     python tools/build.py --fingerprint  stampa solo l'impronta del codice
 """
+import hashlib
 import json
+import re
 import shutil
 import sys
 import zipfile
@@ -21,7 +24,19 @@ FILES = [
 DIRS = ["lib", "icons", "_locales"]
 
 
+def code_fingerprint() -> str:
+    """Stessa impronta calcolata dall'estensione (lib/integrity.js, codeFingerprint)."""
+    source = (ROOT / "lib" / "integrity.js").read_text(encoding="utf-8")
+    block = re.search(r"EXTENSION_CODE_FILES = \[(.*?)\];", source, re.S).group(1)
+    names = re.findall(r'"([^"]+)"', block)
+    listing = "".join(f"{hashlib.sha256((ROOT / n).read_bytes()).hexdigest()}  {n}\n" for n in names)
+    return hashlib.sha256(listing.encode()).hexdigest()
+
+
 def main() -> int:
+    if "--fingerprint" in sys.argv:
+        print(code_fingerprint())
+        return 0
     manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
     version = manifest["version"]
 
@@ -51,6 +66,10 @@ def main() -> int:
 
     print(f"{out.relative_to(ROOT).as_posix()} ({len(paths)} file, {out.stat().st_size} byte)")
     print(f"{unpacked.relative_to(ROOT).as_posix()}/ (cartella da caricare)")
+    fingerprint = code_fingerprint()
+    (out.parent / f"code-fingerprint-{version}.txt").write_text(
+        f"Forensic Web Capture {version}\ncode fingerprint (SHA-256): {fingerprint}\n", encoding="utf-8")
+    print(f"impronta del codice: {fingerprint}")
     return 0
 
 

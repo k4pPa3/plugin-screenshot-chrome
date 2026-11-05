@@ -30,6 +30,13 @@
   disattivare la protezione e ricontrollare, oppure di acquisire comunque con avviso nel report.
 - **Confronto indicativo dell'orologio del PC** con il server; l’ora dichiarata dalla TSA è mostrata come non verificata.
 - **Marca temporale RFC 3161** con qualsiasi servizio (TSA) compatibile, anche con credenziali o API key.
+- **Catena di custodia**: operatore, organizzazione, riferimento del caso e motivo, inclusi in
+  report e copertina e quindi coperti dalla marca temporale; facoltativamente obbligatori.
+- **Registro delle operazioni** con l'ora UTC di ogni passo dell'acquisizione.
+- **Registro HAR** di tutte le risorse caricate, con SHA-256 del contenuto di ogni risposta.
+- **Integrità dell'ambiente**: impronta del codice dell'estensione, confrontabile con quella
+  pubblicata nella release, ed elenco facoltativo delle altre estensioni attive.
+- **Cronologia della scheda** (facoltativa) per documentare come si è arrivati alla pagina.
 - **Tutto in un unico ZIP** con `SHA256SUMS.txt`, pronto da archiviare o consegnare.
 
 - **Quattro lingue**: inglese, italiano, francese e spagnolo, per interfaccia, report e copertina.
@@ -89,6 +96,7 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 | Salva pagina completa (MHTML) | Salva la pagina in un unico file riapribile in Chrome |
 | Salva sorgente HTML | Salva una pagina di consultazione che mostra il DOM come testo inerte, senza interpretarlo come markup |
 | Dati di rete e certificato | **Ricarica la pagina** e registra risposta HTTP, IP, redirect, header e certificato TLS |
+| Registro HAR di tutte le risorse | Con i dati di rete, salva `<id>.har` con ogni richiesta e risposta e l'SHA-256 dei contenuti |
 | Marca temporale RFC 3161 | Invia l’hash del manifest (reperti e report) alla TSA; salva token `.tsr` ed esito `.timestamp.json` |
 | Report anche in JSON | Salva il report anche in formato leggibile dalle macchine |
 | Tutto in un unico ZIP | Raggruppa tutti i file in uno ZIP non compresso, con `SHA256SUMS.txt` |
@@ -109,6 +117,28 @@ Dall'icona ⚙ del popup:
   altezza massima catturata, sottocartella di Download in cui salvare le acquisizioni,
   orientamento della copia per la stampa (A4 verticale o orizzontale, con testo più grande),
   controllo dell'intercettazione TLS prima di acquisire (attivo di default).
+
+### Catena di custodia e registro
+
+Operatore e organizzazione si impostano una volta nelle Impostazioni; riferimento del caso e
+motivo/note si compilano nel popup (sezione **Dati del caso**) e restano fino alla modifica.
+Con **Rendi obbligatori operatore e riferimento del caso** la cattura non parte senza.
+
+Il report contiene il **registro delle operazioni**: ogni passo con ora UTC e dettagli
+(stato HTTP, esito del controllo TLS, dimensioni, hash dei reperti). Il registro si chiude con
+la composizione del report, che viene poi vincolato dal manifest; i passi successivi
+(manifest, richiesta e risposta della TSA) sono nella ricevuta `<id>.timestamp.json`.
+
+### Integrità dell'ambiente
+
+Ogni report riporta l'**impronta del codice** dell'estensione: SHA-256 dell'elenco degli
+hash dei suoi file. Ogni release pubblica la stessa impronta in `code-fingerprint-<versione>.txt`
+(o `python tools/build.py --fingerprint` dal sorgente): se coincide, l'acquisizione è stata
+fatta con il codice pubblicato, non modificato. Con *Elenca le altre estensioni attive*
+(Impostazioni > Catena di custodia, richiede il permesso di gestione delle estensioni) il report
+elenca anche le altre estensioni e avvisa se qualcuna può leggere o modificare le pagine.
+
+Per l'uso forense segui la [procedura operativa](docs/PROCEDURA.md).
 
 ### Intercettazione TLS
 
@@ -145,6 +175,7 @@ Con tutte le funzioni attive, ogni acquisizione produce:
 | `<id>.print.pdf` | Copia in fogli A4 per la stampa, derivata dallo stesso screenshot |
 | `<id>.mhtml` | Copia completa della pagina |
 | `<id>.html` | Pagina HTML che mostra il sorgente DOM come testo inerte, con CSP restrittiva |
+| `<id>.har` | Registro di rete HAR 1.2: richieste, risposte, impronte e (entro 50 MB) contenuti |
 | `<id>.tsr` | Risposta RFC 3161 relativa al manifest (token firmato dalla TSA) |
 | `<id>.report.txt` | Report leggibile con dati, hash e istruzioni di verifica |
 | `<id>.report.json` | Lo stesso report in JSON |
@@ -230,6 +261,12 @@ verificabili con il file principale come bersaglio, secondo le istruzioni del lo
   computer o il browser non fossero stati manomessi, né sostituisce una perizia forense.
 - Con *Dati di rete* attivo la pagina viene ricaricata: un modulo compilato a metà va perso, e i
   contenuti dinamici (pubblicità, feed) possono cambiare rispetto a quanto visto prima.
+- Non sono inclusi: firma digitale dell'operatore sul manifest, video della sessione, controllo
+  della revoca (OCSP/CRL), registrazioni WHOIS/DNS, PDF/A e contenitori ASiC-E. Per il valore
+  legale nell'UE usare una TSA **qualificata eIDAS** e, se richiesto, firmare lo ZIP con un
+  dispositivo di firma qualificata esterno.
+- Il registro HAR riguarda le risorse caricate durante la ricarica; i contenuti sono quelli
+  decodificati dal browser, non i byte grezzi trasmessi (per questo il formato è HAR e non WARC).
 - Se la connessione è ispezionata da software locale e si sceglie *Acquisisci comunque*, i dati
   del certificato descrivono il software di ispezione, non il sito. Il rilevamento è euristico:
   un'ispezione con un emittente sconosciuto e SCT presenti non verrebbe segnalata.
@@ -259,6 +296,7 @@ Modello di sicurezza, rischi residui e come segnalare una vulnerabilità in [SEC
 | `activeTab` | Accedere alla scheda attiva solo quando si usa l'estensione |
 | `downloads` | Salvare i file nella cartella Download |
 | `storage` | Ricordare le impostazioni; tenere in memoria le credenziali della TSA |
+| `management` (facoltativo) | Elencare le altre estensioni attive nel report; chiesto solo attivando l'opzione |
 | Host facoltativi | Contattare il servizio di marca temporale scelto; chiesto solo per quel dominio |
 
 ## Privacy
@@ -283,6 +321,9 @@ lib/pdf.js         Generatore PDF (copertina + screenshot JPEG, copia A4 per la 
 lib/tsa.js         Richiesta e lettura marche temporali RFC 3161
 lib/tsaverify.js   Verifica firma CMS e catena dei certificati della marca
 lib/tsaroots.js    CA radice incluse per i servizi TSA preimpostati
+lib/har.js         Registro HAR delle risorse di rete
+lib/integrity.js   Impronta del codice ed elenco delle altre estensioni
+docs/PROCEDURA.md  Procedura operativa di acquisizione
 lib/zip.js         Archivio ZIP non compresso
 lib/vault.js       Conservazione sicura delle credenziali della TSA
 icons/             Icone (generate da tools/make_icons.py)
@@ -305,8 +346,8 @@ python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 poi crea e invia un tag con la stessa versione. GitHub Actions crea il pacchetto e la release.
 
 ```sh
-git tag v1.6.0
-git push origin v1.6.0
+git tag v1.7.0
+git push origin v1.7.0
 ```
 
 ## Licenza

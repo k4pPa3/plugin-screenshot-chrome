@@ -16,6 +16,13 @@ URL, titolo e, se attivi la funzione *Dati di rete*, la risposta HTTP e il certi
 Questi dati servono solo a creare i file di acquisizione, che vengono salvati nella cartella
 Download del tuo computer e non vengono inviati altrove.
 
+Con il **registro HAR** l'acquisizione contiene anche le risorse caricate dalla pagina (con
+cookie e header di autorizzazione oscurati). Se attivi le relative opzioni, il report include
+le ultime pagine aperte nella scheda e l'elenco delle altre estensioni installate: per
+quest'ultimo l'estensione chiede il permesso facoltativo di gestione delle estensioni, usato
+solo per leggerne nome, versione e permessi. I dati della catena di custodia (operatore,
+organizzazione, caso, note) che inserisci restano nelle impostazioni locali e nei report.
+
 ## Impostazioni
 
 Le impostazioni sono salvate nella memoria locale dell'estensione (`chrome.storage.local`) su

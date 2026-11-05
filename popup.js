@@ -6,12 +6,22 @@ const resultEl = document.getElementById("result");
 const tsaHint = document.getElementById("tsaHint");
 const switches = [...document.querySelectorAll("[data-feature]")];
 const timestampSwitch = document.querySelector('[data-feature="timestamp"]');
+const custodyInputs = [...document.querySelectorAll("[data-custody]")];
+const custodyBox = document.getElementById("custodyBox");
+const custodySummary = document.getElementById("custodySummary");
 
 let settings;
 
 function setStatus(text, isError = false) {
   status.textContent = text;
   status.className = isError ? "error" : "";
+}
+
+// L'HAR si registra durante la ricarica dei dati di rete.
+function syncHarSwitch() {
+  const har = document.querySelector('[data-feature="har"]');
+  har.disabled = !document.querySelector('[data-feature="network"]').checked;
+  har.closest(".switch").classList.toggle("disabled", har.disabled);
 }
 
 // Copertina e copia per la stampa esistono solo nel formato PDF.
@@ -42,7 +52,22 @@ function persist() {
     s.width = Number(widthEl.value) || 0;
     s.format = formatEl.value;
     for (const el of switches) s.features[el.dataset.feature] = el.checked;
-  }).then((s) => { settings = s; });
+    for (const el of custodyInputs) s.custody[el.dataset.custody] = el.value;
+  }).then((s) => { settings = s; syncCustody(); });
+}
+
+// Riepilogo della catena di custodia nella riga chiusa; in rosso se i dati
+// obbligatori mancano.
+function custodyMissing() {
+  const c = settings.custody;
+  return settings.advanced.custodyRequired && (!c.operator.trim() || !c.caseRef.trim());
+}
+
+function syncCustody() {
+  const c = settings.custody;
+  custodySummary.textContent = [c.operator, c.caseRef].map((x) => x.trim()).filter(Boolean).join(" · ")
+    || (settings.advanced.custodyRequired ? t("popup.custody.required") : t("popup.custody.optional"));
+  custodyBox.classList.toggle("missing", custodyMissing());
 }
 
 function addHash(label, value) {
@@ -127,7 +152,11 @@ function render(state) {
   widthEl.value = String(settings.width);
   formatEl.value = settings.format;
   for (const el of switches) el.checked = !!settings.features[el.dataset.feature];
+  for (const el of custodyInputs) el.value = settings.custody[el.dataset.custody] || "";
   syncCoverSwitch();
+  syncHarSwitch();
+  syncCustody();
+  if (custodyMissing()) custodyBox.open = true;
   showTsaHint();
 
   const { capture } = await chrome.storage.session.get("capture");
@@ -141,7 +170,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 widthEl.addEventListener("change", persist);
 formatEl.addEventListener("change", () => { syncCoverSwitch(); persist(); });
-switches.forEach((el) => el.addEventListener("change", persist));
+switches.forEach((el) => el.addEventListener("change", () => { syncHarSwitch(); persist(); }));
+custodyInputs.forEach((el) => el.addEventListener("change", persist));
 
 document.getElementById("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
 tsaHint.addEventListener("click", (e) => {
@@ -162,6 +192,12 @@ button.addEventListener("click", () => startCapture(false));
 
 async function startCapture(override) {
   await persist();
+
+  if (custodyMissing()) {
+    custodyBox.open = true;
+    setStatus(t("err.custodyMissing"), true);
+    return;
+  }
 
   if (settings.features.timestamp && !settings.tsa.url) {
     setStatus(t("popup.tsa.configure"), true);

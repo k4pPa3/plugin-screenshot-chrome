@@ -4,6 +4,31 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.7.0] - 2026-11-05
+
+### Aggiunto
+
+- Registro HAR 1.2 (`<id>.har`) di tutte le richieste fatte dalla pagina durante la
+  ricarica, con SHA-256 del contenuto di ogni risposta e contenuti incorporati entro 10 MB
+  ciascuno e 50 MB in tutto; cookie e autorizzazioni oscurati. Incluso nel manifest.
+- Integrità dell'ambiente: impronta SHA-256 del codice dell'estensione nel report e in
+  copertina, pubblicata anche nella release (`code-fingerprint-<versione>.txt`,
+  `tools/build.py --fingerprint`). Elenco facoltativo delle altre estensioni attive con
+  avviso per quelle che possono modificare le pagine (permesso facoltativo `management`).
+- Cronologia facoltativa della scheda (ultime 10 pagine) per documentare come si è arrivati
+  alla pagina.
+- Indicazione del servizio di marca temporale qualificato eIDAS (Aruba preimpostato).
+- Procedura operativa di acquisizione in `docs/PROCEDURA.md`.
+
+- Catena di custodia: operatore e organizzazione (Impostazioni), riferimento del caso e
+  motivo/note (popup, sezione "Dati del caso"). Compaiono in copertina, nel report di testo
+  e in `report.json` (`custody`), quindi sono vincolati da manifest e marca temporale.
+  Opzione per renderli obbligatori.
+- Registro delle operazioni con ora UTC di ogni passo (collegamento del debugger, ricarica,
+  risposta, controllo TLS, impaginazione, screenshot, copie, hash dei reperti, report) nel
+  report e in `report.json` (`log`). Manifest e richiesta TSA sono registrati nella
+  ricevuta `<id>.timestamp.json` (`log`).
+
 ## [1.6.0] - 2026-11-05
 
 ### Aggiunto
@@ -179,6 +204,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.7.0]: ../../releases/tag/v1.7.0
 [1.6.0]: ../../releases/tag/v1.6.0
 [1.5.0]: ../../releases/tag/v1.5.0
 
