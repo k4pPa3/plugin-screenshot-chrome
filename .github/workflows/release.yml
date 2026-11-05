@@ -49,8 +49,20 @@ jobs:
       - name: Controlla sintassi e test di regressione
         run: python3 tools/check.py
 
+      - name: Install browser test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+
+      - name: Verify extension and generate real store screenshots
+        env:
+          FWC_STORE_SCREENSHOTS_DIR: dist/store-screenshots
+        run: xvfb-run -a npm run test:browser
+
       - name: Crea il pacchetto
-        run: python3 tools/build.py
+        run: |
+          python3 tools/build.py
+          python3 tools/build_store.py
 
       - name: Calcola l'hash del pacchetto
         run: cd dist && sha256sum *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt

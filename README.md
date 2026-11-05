@@ -346,9 +346,9 @@ Modello di sicurezza, rischi residui e come segnalare una vulnerabilità in [SEC
 
 L'estensione non raccoglie dati e non usa server propri. Se la marca temporale è attiva,
 invia al servizio scelto **l’hash SHA-256** del manifest, mai i file né l’URL della pagina.
-Nelle Opzioni è presente un riquadro di supporto volontario con nome utente Satispay e
-un invito separato: il link apre Satispay solo su scelta dell'utente, senza dati di acquisizione
-né tracciamento da parte dell'estensione.
+Nelle Opzioni è presente un riquadro di supporto volontario con il nome utente pubblico
+Satispay dell'autore, copiabile negli appunti. Non contiene referral, link promozionali
+o richieste automatiche a Satispay e non misura contributi o clic.
 Dettagli in [PRIVACY.md](PRIVACY.md).
 
 ## Sviluppo
@@ -392,8 +392,8 @@ python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 poi crea e invia un tag con la stessa versione. GitHub Actions crea il pacchetto e la release.
 
 ```sh
-git tag v1.7.5
-git push origin v1.7.5
+git tag v1.7.6
+git push origin v1.7.6
 ```
 
 ## Licenza
@@ -412,3 +412,11 @@ La release può essere pubblicata anche tramite una PR interna dal branch
 `release/<versione>` verso `main`: aggiornare `manifest.json` e changelog,
 attendere la CI e unire la PR. Il workflow verifica che la versione nel nome del
 branch coincida con il manifest, crea il tag sul commit di merge e pubblica gli artefatti.
+
+## Materiale per il Chrome Web Store
+
+Testi italiano/inglese, motivazioni dei permessi e istruzioni per il revisore sono in
+[docs/store](docs/store/README.md). La CI genera screenshot reali delle Opzioni a 1280×800.
+Le release includono anche `store-submission-<versione>.zip`, con il pacchetto installabile
+e il materiale da caricare separatamente nel pannello dello store. Il bundle esterno
+non va caricato come estensione. La pubblicazione resta soggetta alla revisione Google.

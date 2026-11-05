@@ -105,16 +105,10 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     await options.bringToFront();
     const card = options.locator('.support-card');
     assert.equal(await card.locator('#supportUsername').textContent(), '@martinandrea86');
-    assert.equal(await card.locator('details').getAttribute('open'), null);
-    assert.equal(await options.locator('#supportInviteLink').getAttribute('href'),
-      'https://web.satispay.com/promocode/69e1c16a-a641-40be-b622-657aa3e26da7');
-    assert.equal(await options.locator('#supportInviteLink').getAttribute('rel'), 'noopener noreferrer');
+    assert.equal(await card.locator('a, details').count(), 0);
+    assert.doesNotMatch(await card.textContent(), /andreamartin8|referral|invito/i);
     await options.locator('#copySupportUsername').click();
     await options.getByRole('status').filter({ hasText: 'Nome utente copiato.' }).waitFor();
-    await card.locator('summary').click();
-    assert.equal(await options.locator('#supportPromoCode').textContent(), 'andreamartin8');
-    await options.locator('#copySupportPromo').click();
-    await options.getByRole('status').filter({ hasText: 'Codice invito copiato.' }).waitFor();
     // Clipboard denial leaves a usable, selectable identifier.
     await options.evaluate(() => {
       Object.defineProperty(navigator.clipboard, 'writeText', {
@@ -127,10 +121,23 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
       await options.locator('#language').selectOption(language);
       assert.ok((await options.locator('#supportHeading').textContent()).length > 0);
     }
+    if (process.env.FWC_STORE_SCREENSHOTS_DIR) {
+      const output = path.resolve(process.env.FWC_STORE_SCREENSHOTS_DIR);
+      await fs.mkdir(output, { recursive: true });
+      await options.setViewportSize({ width: 1280, height: 800 });
+      await options.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+      for (const language of ['en', 'it']) {
+        await options.locator('#language').selectOption(language);
+        await options.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
+        await options.screenshot({ path: path.join(output, `options-${language}.png`) });
+        await options.locator('#custodyOperator').evaluate(el => el.closest('section').scrollIntoView({ block: 'start' }));
+        await options.screenshot({ path: path.join(output, `custody-${language}.png`) });
+      }
+    }
     await options.setViewportSize({ width: 375, height: 800 });
     assert.ok(await card.evaluate(el => el.getBoundingClientRect().right <= window.innerWidth));
     assert.deepEqual(externalRequests, []);
-    t.diagnostic('Options: public username, separate referral, clipboard success/denial, translations and mobile layout verified');
+    t.diagnostic('Options: public username, no referral, clipboard success/denial, translations and mobile layout verified');
 
   } finally {
     if (browser) await browser.close();

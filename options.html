@@ -29,10 +29,6 @@
     .support-recipient { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
     .support-recipient code { font-size: 13px; user-select: all; overflow-wrap: anywhere; }
     .support-card button { padding: 5px 9px; font-size: 12px; font-weight: 400; }
-    .support-card details { margin-top: 12px; color: var(--muted); font-size: 12px; }
-    .support-card summary { cursor: pointer; }
-    .support-card a { color: var(--accent); }
-    .support-card a:focus-visible, .support-card summary:focus-visible,
     .support-card button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     #supportStatus { min-height: 1.4em; margin: 8px 0 0; font-size: 12px; }
     footer { margin-top: 32px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
@@ -202,16 +198,6 @@
       <button type="button" class="secondary" id="copySupportUsername" data-i18n="options.support.copyUsername"></button>
     </div>
     <p id="supportStatus" role="status" aria-live="polite"></p>
-    <details>
-      <summary data-i18n="options.support.inviteTitle"></summary>
-      <p class="desc" data-i18n="options.support.inviteDesc"></p>
-      <div class="support-recipient">
-        <code id="supportPromoCode" translate="no">andreamartin8</code>
-        <button type="button" class="secondary" id="copySupportPromo" data-i18n="options.support.copyPromo"></button>
-        <a id="supportInviteLink" href="https://web.satispay.com/promocode/69e1c16a-a641-40be-b622-657aa3e26da7" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" data-i18n="options.support.openInvite"></a>
-      </div>
-      <p class="desc" data-i18n="options.support.inviteTerms"></p>
-    </details>
   </section>
 
   <footer>
