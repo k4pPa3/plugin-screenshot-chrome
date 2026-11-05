@@ -20,10 +20,10 @@
 - **Formati**: PDF, PNG o JPEG. Nel PDF lo screenshot è incorporato così com'è; le pagine molto alte
   vengono divise su più pagine PDF senza perdere nulla.
 - **Pagina di copertina** nel PDF con URL, data/ora, browser, dati di rete e hash dei file correlati.
-- **Report di acquisizione** in testo (e facoltativamente JSON) con gli hash SHA-256 di tutti i file.
-- **Copia della pagina** in MHTML (si riapre in Chrome) e sorgente HTML.
+- **Report di acquisizione** in testo (e facoltativamente JSON), inclusi nel manifest SHA-256 insieme ai reperti.
+- **Copia della pagina** in MHTML (si riapre in Chrome) e sorgente HTML visualizzato come testo inerte.
 - **Dati di rete**: IP del server, risposta HTTP, redirect, header, certificato TLS e sua impronta.
-- **Controllo dell'orologio del PC** rispetto al server e alla TSA, con avviso se è sfasato.
+- **Confronto indicativo dell'orologio del PC** con il server; l’ora dichiarata dalla TSA è mostrata come non verificata.
 - **Marca temporale RFC 3161** con qualsiasi servizio (TSA) compatibile, anche con credenziali o API key.
 - **Tutto in un unico ZIP** con `SHA256SUMS.txt`, pronto da archiviare o consegnare.
 
@@ -57,7 +57,7 @@ basta premere ↻ sull'estensione in `chrome://extensions`.
 
 Clicca l'icona dell'estensione (o premi <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>), scegli
 larghezza, formato e funzioni, poi **Cattura pagina intera**. I file finiscono nella cartella
-Download; il popup mostra l'hash SHA-256 del file principale ed eventuali avvisi.
+Download; l’esito positivo viene mostrato solo dopo la conferma di completamento di Chrome; il popup mostra l'hash SHA-256 del file principale ed eventuali avvisi.
 
 Durante la cattura Chrome mostra la barra *"Full Page Screenshot ha avviato il debug di questo
 browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e sparisce a fine cattura.
@@ -69,9 +69,9 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 | Pagina di copertina | Aggiunge al PDF una prima pagina con i dati dell'acquisizione (solo PDF) |
 | Scorri la pagina prima della cattura | Scorre fino in fondo per caricare le immagini *lazy* |
 | Salva pagina completa (MHTML) | Salva la pagina in un unico file riapribile in Chrome |
-| Salva sorgente HTML | Salva il DOM della pagina al momento della cattura |
+| Salva sorgente HTML | Salva una pagina di consultazione che mostra il DOM come testo inerte, senza interpretarlo come markup |
 | Dati di rete e certificato | **Ricarica la pagina** e registra risposta HTTP, IP, redirect, header e certificato TLS |
-| Marca temporale RFC 3161 | Invia l'hash del file principale alla TSA e salva il token `.tsr` |
+| Marca temporale RFC 3161 | Invia l’hash del manifest (reperti e report) alla TSA; salva token `.tsr` ed esito `.timestamp.json` |
 | Report anche in JSON | Salva il report anche in formato leggibile dalle macchine |
 | Tutto in un unico ZIP | Raggruppa tutti i file in uno ZIP non compresso, con `SHA256SUMS.txt` |
 
@@ -103,13 +103,27 @@ Con tutte le funzioni attive, ogni acquisizione produce:
 
 | File | Contenuto |
 |---|---|
-| `<titolo>_<data>.pdf` | Copertina + screenshot integrale |
-| `<titolo>_<data>.mhtml` | Copia completa della pagina |
-| `<titolo>_<data>.html` | Sorgente HTML (DOM), con una CSP in testa che all'apertura blocca script e risorse esterne |
-| `<titolo>_<data>.tsr` | Marca temporale RFC 3161 del PDF |
-| `<titolo>_<data>.report.txt` | Report leggibile con dati, hash e istruzioni di verifica |
-| `<titolo>_<data>.report.json` | Lo stesso report in JSON |
-| `SHA256SUMS.txt` | Hash di tutti i file (solo nello ZIP) |
+| `<id>.pdf` | Copertina + screenshot integrale |
+| `<id>.mhtml` | Copia completa della pagina |
+| `<id>.html` | Pagina HTML che mostra il sorgente DOM come testo inerte, con CSP restrittiva |
+| `<id>.tsr` | Risposta RFC 3161 relativa al manifest (firma da verificare esternamente) |
+| `<id>.report.txt` | Report leggibile con dati, hash e istruzioni di verifica |
+| `<id>.report.json` | Lo stesso report in JSON |
+| `<id>.manifest.sha256` | Hash di screenshot, copie della pagina e report; è il file sottoposto a marcatura |
+| `<id>.timestamp.json` | Esito TSA, hash del manifest e stato esplicito `not-verified`, anche in caso di errore |
+| `SHA256SUMS.txt` | Hash di tutti gli altri file nello ZIP, inclusi report, manifest, token e ricevuta |
+
+`<id>` è `capture_<data>_<UUID>`: il titolo della pagina resta nei metadati e non entra nei
+nomi o nei comandi. Senza ZIP il riepilogo è `<id>.SHA256SUMS.txt`, sempre incluso.
+
+Il manifest viene creato **prima** della richiesta TSA: comprende anche i report immutabili,
+che descrivono la richiesta e rimandano alla ricevuta separata per l’esito. Token e ricevuta
+sono esclusi dal manifest per evitare dipendenze circolari, ma inclusi nel riepilogo finale.
+Lo schema JSON del report è `full-page-screenshot/report@2`.
+
+Gli hash da soli rilevano variazioni rispetto a un riferimento conservato: non autenticano
+l’autore. Per il legame temporale verificare la firma del token e gli hash del manifest.
+Se la TSA fallisce, i reperti vengono comunque salvati con ricevuta di errore e avviso.
 
 ## Verificare un'acquisizione
 
@@ -120,7 +134,7 @@ sha256sum -c SHA256SUMS.txt
 ```
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "<file>"
+Get-FileHash -Algorithm SHA256 -LiteralPath '<file>'
 ```
 
 **Marca temporale** (esempio con FreeTSA, i cui certificati sono su
@@ -130,17 +144,25 @@ Get-FileHash -Algorithm SHA256 "<file>"
 curl -O https://freetsa.org/files/cacert.pem
 curl -O https://freetsa.org/files/tsa.crt
 
-openssl ts -reply -in "<file>.tsr" -text
-openssl ts -verify -data "<file>.pdf" -in "<file>.tsr" -CAfile cacert.pem -untrusted tsa.crt
+openssl ts -reply -in "<id>.tsr" -text
+openssl ts -verify -data "<id>.manifest.sha256" -in "<id>.tsr" -CAfile cacert.pem -untrusted tsa.crt
+sha256sum -c "<id>.manifest.sha256"
 ```
 
-L'ultimo comando deve rispondere `Verification: OK`.
+OpenSSL deve rispondere `Verification: OK`; il controllo del manifest deve dare `OK` per
+ogni file. Usare certificati TSA e CA ottenuti da una fonte fidata. Non usare automaticamente
+un certificato ricevuto nel pacchetto come radice fidata.
+
+L’estensione controlla struttura DER, algoritmo SHA-256, hash, nonce obbligatorio e policy
+richiesta. **Non verifica la firma CMS né la fiducia della catena certificati**: popup, test del
+servizio e ricevuta lo indicano esplicitamente. L’ora TSA non viene usata come riferimento
+certificato dall’estensione. Le acquisizioni precedenti alla 1.6.0 restano verificabili con
+il file principale come bersaglio, secondo le istruzioni del loro report.
 
 ## Limiti e valore probatorio
 
-- Data e ora dello screenshot vengono dall'orologio del computer. La data certificata è solo quella
-  della marca temporale; il suo valore legale dipende dal servizio usato (pieno solo con una TSA
-  qualificata eIDAS).
+- Data e ora dello screenshot vengono dall'orologio del computer. L’ora dichiarata dalla TSA deve
+  essere convalidata verificando firma e catena; le garanzie dipendono dal servizio utilizzato.
 - L'estensione documenta ciò che il browser ha ricevuto e mostrato. Non può garantire che il
   computer o il browser non fossero stati manomessi, né sostituisce una perizia forense.
 - Con *Dati di rete* attivo la pagina viene ricaricata: un modulo compilato a metà va perso, e i
@@ -155,8 +177,10 @@ L'ultimo comando deve rispondere `Verification: OK`.
 ## Sicurezza
 
 L'estensione tratta come non affidabili la pagina catturata, il server e il servizio di marca
-temporale: la pagina non può falsificare l'HTML salvato né bloccare la cattura, i cookie e le
-password nell'URL vengono rimossi dai report, l'HTML salvato non esegue script all'apertura.
+temporale: le valutazioni del DOM avvengono in un mondo isolato con timeout, i cookie e le
+password nell’URL principale vengono rimossi dai report. Il sorgente HTML viene mostrato come
+testo inerte: non è una copia navigabile della pagina. L’MHTML resta una copia attiva e va
+riaperto soltanto in un ambiente isolato adeguato.
 Modello di sicurezza, rischi residui e come segnalare una vulnerabilità in [SECURITY.md](SECURITY.md).
 
 ## Permessi
@@ -172,7 +196,7 @@ Modello di sicurezza, rischi residui e come segnalare una vulnerabilità in [SEC
 ## Privacy
 
 L'estensione non raccoglie dati e non contatta alcun server, con un'unica eccezione: se la marca
-temporale è attiva, invia al servizio scelto **solo l'hash SHA-256** del file, mai il file né l'URL.
+temporale è attiva, invia al servizio scelto **solo l’hash SHA-256** del manifest, mai i file né l’URL.
 Dettagli in [PRIVACY.md](PRIVACY.md).
 
 ## Sviluppo
@@ -195,9 +219,14 @@ icons/             Icone (generate da tools/make_icons.py)
 tools/build.py     Crea il pacchetto in dist/
 ```
 
-Nessuna dipendenza esterna né passo di build: il codice si carica così com'è in Chrome.
+Nessuna dipendenza esterna a runtime né passo di build: il codice si carica così com’è in Chrome.
+I test richiedono Node.js >= 20, Python 3 e OpenSSL. La CI esegue test e confezionamento su
+push e pull request; gli stessi test bloccano il rilascio in caso di errore.
+I test simulano le API Chrome e verificano il parser HTML in modo indipendente: il collaudo
+manuale in Chrome resta necessario per pagine dinamiche, download e interfaccia.
 
 ```sh
+python tools/check.py        # sintassi + test, inclusa TSA OpenSSL locale
 python tools/build.py        # crea dist/full-page-screenshot-<versione>.zip
 python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 ```
@@ -206,10 +235,11 @@ python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 poi crea e invia un tag con la stessa versione. GitHub Actions crea il pacchetto e la release.
 
 ```sh
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.6.0
+git push origin v1.6.0
 ```
 
 ## Licenza
 
 [MIT](LICENSE) © 2026 Andrea Martin
+

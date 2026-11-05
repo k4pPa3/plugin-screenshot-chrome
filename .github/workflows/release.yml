@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      # Azione fissata a un commit preciso (v5.1.0) per evitare che un tag
+      # Azione fissata a un commit preciso (v7.0.1) per evitare che un tag
       # spostato introduca codice diverso; Dependabot la tiene aggiornata.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,8 +27,8 @@ jobs:
             exit 1
           fi
 
-      - name: Controlla la sintassi JavaScript
-        run: for f in background.js popup.js options.js lib/*.js; do node --check "$f"; done
+      - name: Controlla sintassi e test di regressione
+        run: python3 tools/check.py
 
       - name: Crea il pacchetto
         run: python3 tools/build.py
@@ -40,3 +40,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --title "$GITHUB_REF_NAME" --generate-notes
+
