@@ -1,6 +1,6 @@
 # Informativa sulla privacy — Forensic Web Capture
 
-*Ultimo aggiornamento: 6 novembre 2026 — funzionalità verificate sulla versione in sviluppo successiva alla 1.7.6*
+*Ultimo aggiornamento: 6 novembre 2026 — funzionalità verificate sulla versione 1.8.0*
 
 ## Ambito e sviluppatore
 

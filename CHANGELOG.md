@@ -4,7 +4,7 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
-## [Non rilasciato]
+## [1.8.0] - 2026-11-06
 
 ### Aggiunto
 
@@ -315,6 +315,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.8.0]: ../../releases/tag/v1.8.0
 [1.7.6]: ../../releases/tag/v1.7.6
 [1.7.5]: ../../releases/tag/v1.7.5
 [1.7.3]: ../../releases/tag/v1.7.3
