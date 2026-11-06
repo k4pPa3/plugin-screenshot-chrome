@@ -32,6 +32,18 @@ fornisce e il servizio di marca temporale. In particolare:
 - **Dati sensibili nel report**: i valori dei cookie (`Set-Cookie`) e le password nell'URL
   vengono rimossi; caratteri di controllo e di direzione del testo vengono eliminati da nomi
   di file e report.
+- **Report HTML**: pagina generata dall'estensione con CSP `default-src 'none'`, senza script
+  né risorse esterne; ogni valore (anche titolo e testi della pagina) passa da un escape HTML.
+- **Cookie e storage**: di default si salvano solo SHA-256 e lunghezza dei valori; i valori
+  restano in memoria solo fino al calcolo delle impronte. I valori in chiaro richiedono
+  un'opzione esplicita nelle Impostazioni e producono un avviso.
+- **Contesto di rete esterno**: disattivato di default; richieste GET via `https` (i servizi
+  non https del bootstrap IANA vengono scartati), senza cookie né referrer, con timeout e
+  dimensione massima. Viene inviato solo il nome host o l'IP, mai percorso o parametri.
+  Le risposte RDAP e DNS sono trattate come dati non affidabili: salvate come JSON e mostrate
+  nei report solo come testo.
+- **Bozza PEC**: il destinatario finisce nell'intestazione solo se è un indirizzo semplice e
+  valido (niente a capo, virgole o nomi visualizzati), l'oggetto è codificato RFC 2047.
 - **Marca temporale**: credenziali e header vengono inviati solo via `https`, senza redirect,
   senza cookie, con timeout e dimensione massima della risposta. Struttura DER, algoritmo, hash, nonce obbligatorio e policy della risposta
   vengono controllati. La firma CMS (impronta, `signingCertificate`, firma) e la catena dei
@@ -91,6 +103,11 @@ fornisce e il servizio di marca temporale. In particolare:
   qualificazione del servizio mediante liste fiduciarie eIDAS. Il preset del servizio
   è un'indicazione di configurazione, non un'attestazione della sua qualificazione.
 
+- **Cookie e storage**: l'impronta SHA-256 non protegge valori brevi o prevedibili, che si
+  possono ricavare per tentativi. Con i valori in chiaro il pacchetto contiene credenziali.
+- **Servizi del contesto di rete**: IANA, i registri e il servizio DNS scelto vedono il dominio
+  e l'IP indagati e l'IP della connessione dell'operatore. I loro dati possono essere
+  incompleti (registranti oscurati per GDPR) o diversi da quelli visti dal PC (DNS geografico).
 - **Credenziali in memoria**: mentre il browser è aperto e le credenziali sono sbloccate,
   un malware con accesso al processo di Chrome può leggerle. Nessuna estensione può
   proteggersi da un computer compromesso.

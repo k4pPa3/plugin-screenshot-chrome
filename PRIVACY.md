@@ -1,6 +1,6 @@
 # Informativa sulla privacy — Forensic Web Capture
 
-*Ultimo aggiornamento: 5 novembre 2026 — funzionalità verificate sulla versione 1.7.6*
+*Ultimo aggiornamento: 6 novembre 2026 — funzionalità verificate sulla versione in sviluppo successiva alla 1.7.6*
 
 ## Ambito e sviluppatore
 
@@ -19,13 +19,16 @@ il fatto che i dati restino locali non significa che non vengano trattati.
 
 | Dati | Quando e per quale scopo | Destinazione |
 |---|---|---|
-| Contenuti dei siti web | Quando avvii un'acquisizione: aspetto della pagina e, secondo le opzioni abilitate, HTML, MHTML e contenuti delle risposte di rete. Servono a documentare la pagina scelta. | File di acquisizione sul tuo computer. |
+| Contenuti dei siti web | Quando avvii un'acquisizione: aspetto della pagina e, secondo le opzioni abilitate, HTML, testo visibile e link, MHTML e contenuti delle risposte di rete. Servono a documentare la pagina scelta. | File di acquisizione sul tuo computer. |
 | URL, titoli e navigazione | URL e titolo della pagina acquisita; redirect se rilevati dai dati di rete. Se abiliti la cronologia della scheda, fino a dieci voci, compresa quella corrente, con URL, titolo e tipo di navigazione. | Report e file locali; URL e titolo dell'ultima acquisizione anche nello stato temporaneo dell'estensione. |
 | Dati identificativi inseriti dall'operatore | Operatore, organizzazione, riferimento del caso e note, se compilati. Servono a descrivere chi ha eseguito l'acquisizione e il relativo contesto. | Impostazioni locali e report. |
 | Dati di autenticazione TSA | Nome utente, password o header personalizzato configurati per il servizio di marca temporale. Servono ad autenticare la richiesta quando il servizio lo richiede. | Impostazioni o memoria di sessione, come precisato sotto; credenziali inviate al servizio TSA selezionato soltanto tramite HTTPS. |
 | Attività di rete della pagina | Se abiliti i dati di rete e il registro HAR: richieste e risposte, URL, metodi, stato HTTP, intestazioni, tempi, redirect e contenuti recuperabili entro i limiti previsti. Il monitoraggio riguarda l'acquisizione richiesta. | Report e HAR locali. |
 | Ambiente tecnico | Data e ora, fuso orario configurato, browser e versione, user agent, dimensioni dell'acquisizione e impronta del codice dell'estensione. Se abiliti l'inventario e concedi il permesso facoltativo, identificativi, nomi, versioni, tipo di installazione e indicatori dei permessi delle altre estensioni attive. | Report locali, per documentare l'ambiente di acquisizione. |
-| Informazioni sul server | Con i dati di rete: indirizzi IP e porte dei server remoti e informazioni HTTP/TLS disponibili, compreso il certificato del sito. | Report e HAR locali. Gli IP dei server non sono una misura della tua posizione. |
+| Informazioni sul server | Con i dati di rete: indirizzi IP e porte dei server remoti e informazioni HTTP/TLS disponibili, compreso il certificato del sito e la sua catena. | Report, HAR e file `.cert.pem` locali. Gli IP dei server non sono una misura della tua posizione. |
+| Cookie e storage della pagina | Se abiliti *Cookie e storage*: nome, dominio, percorso, scadenza e attributi dei cookie della pagina e dei suoi frame (anche HttpOnly), chiavi di localStorage e sessionStorage dell'origine. Dei valori si salva di default solo l'impronta SHA-256 e la lunghezza; i valori in chiaro solo se attivi l'apposita opzione nelle Impostazioni. | File `.storage.json` locale e sintesi nei report. |
+| Titolari di dominio e rete, DNS | Se abiliti il *Contesto di rete esterno*: dati pubblici di registrazione del dominio e della rete IP del server (RDAP) e record DNS del dominio. | File `.netcontext.json` locale e sintesi nei report. |
+| Bozza PEC | Se abiliti la bozza: un file `.eml` con manifest e report allegati e l'eventuale destinatario configurato. L'estensione non spedisce messaggi. | File locale, finché non lo invii tu con il tuo programma di posta. |
 
 Non viene richiesto l'accesso alla posizione GPS né viene effettuata una ricerca della
 posizione del dispositivo. Non vengono registrati tasti premuti, movimenti del mouse o
@@ -86,6 +89,25 @@ tempi di conservazione, che non sono controllati dallo sviluppatore dell'estensi
 L'endpoint predefinito FreeTSA usa HTTPS. Sono supportati anche endpoint HTTP senza
 credenziali: in quel caso la richiesta non beneficia della cifratura HTTPS.
 L'estensione rifiuta l'invio di credenziali via HTTP. Preferisci un endpoint HTTPS.
+
+## Connessioni del contesto di rete esterno (facoltativo)
+
+Il *Contesto di rete esterno* è **disattivato di default**. Se lo attivi, dopo la
+cattura l'estensione interroga via HTTPS, senza cookie e senza referrer:
+
+- **IANA** (`data.iana.org`), per sapere quale servizio RDAP gestisce il dominio e l'IP;
+- il **registro del dominio** (ad esempio Verisign per `.com`), a cui invia il nome di
+  dominio della pagina;
+- il **registro regionale degli indirizzi IP** (ad esempio RIPE NCC o ARIN), a cui invia
+  l'indirizzo IP del server;
+- il servizio **DNS-over-HTTPS** scelto nelle Impostazioni (Cloudflare o Google), a cui
+  invia il nome di dominio e il tipo di record richiesto.
+
+Non vengono inviati il percorso o i parametri dell'URL, il contenuto della pagina, i
+reperti o i dati della catena di custodia. Questi servizi possono però osservare il
+dominio e l'IP che stai documentando, oltre all'indirizzo IP della tua connessione, e
+applicano le proprie informative. Se l'indagine è riservata, valuta se attivare la
+funzione.
 
 Separatamente, il normale caricamento della pagina, la ricarica necessaria ai dati
 di rete e il caricamento di risorse durante lo scorrimento possono contattare il sito

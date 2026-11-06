@@ -23,22 +23,33 @@
 - **Pagina di copertina** nel PDF con URL, data/ora, browser, dati di rete e hash dei file correlati.
 - **Copia PDF per la stampa**: lo stesso screenshot impaginato su fogli A4 (verticali o orizzontali)
   con fasce sovrapposte, numero di pagina e, su ogni foglio, l'hash del PDF digitale di riferimento.
-- **Report di acquisizione** in testo (e facoltativamente JSON), inclusi nel manifest SHA-256 insieme ai reperti.
+- **Report di acquisizione** in testo, in HTML (leggibile e stampabile, senza script né risorse
+  esterne) e facoltativamente in JSON, inclusi nel manifest SHA-256 insieme ai reperti.
 - **Copia della pagina** in MHTML (si riapre in Chrome) e sorgente HTML visualizzato come testo inerte.
-- **Dati di rete**: IP del server, risposta HTTP, redirect, header, certificato TLS e sua impronta.
+- **Testo visibile e link** della pagina in un file di testo ricercabile, accanto allo screenshot.
+- **Cookie e storage** della pagina (anche HttpOnly, localStorage e sessionStorage): nomi e
+  attributi, con i valori ridotti di default a impronta SHA-256 perché sono credenziali.
+- **Contesto di rete esterno** (facoltativo, disattivato di default): titolari del dominio e
+  della rete IP del server via RDAP, record DNS via DNS-over-HTTPS e confronto fra l'IP usato
+  dal browser e quelli del DNS.
+- **Dati di rete**: IP del server, risposta HTTP, redirect, header, certificato TLS con la sua
+  impronta e la catena completa in PEM.
 - **Rilevamento dell'intercettazione TLS**: se un antivirus, una VPN o un proxy ispeziona HTTPS
   (il certificato registrato non sarebbe quello del sito), la cattura si sospende e propone di
   disattivare la protezione e ricontrollare, oppure di acquisire comunque con avviso nel report.
 - **Confronto indicativo dell'orologio del PC** con il server; l’ora dichiarata dalla TSA è mostrata come non verificata.
 - **Marca temporale RFC 3161** con qualsiasi servizio (TSA) compatibile, anche con credenziali o API key.
+- **Bozza per l'invio tramite PEC** (`.eml`) con manifest e report allegati, come alternativa o
+  complemento alla marca temporale.
 - **Catena di custodia**: operatore, organizzazione, riferimento del caso e motivo, inclusi in
   report e copertina e quindi coperti dalla marca temporale; facoltativamente obbligatori.
 - **Registro delle operazioni** con l'ora UTC di ogni passo dell'acquisizione.
 - **Registro HAR** delle risorse osservate, con SHA-256 dei contenuti recuperabili e limiti documentati.
-- **Integrità dell'ambiente**: impronta del codice dell'estensione, confrontabile con quella
+- **Integrità dell'ambiente**: sistema operativo, impronta del codice dell'estensione, confrontabile con quella
   pubblicata nella release, ed elenco facoltativo delle altre estensioni attive.
 - **Cronologia della scheda** (facoltativa) per documentare come si è arrivati alla pagina.
-- **Tutto in un unico ZIP** con `SHA256SUMS.txt`, pronto da archiviare o consegnare.
+- **Tutto in un unico ZIP** con `SHA256SUMS.txt`, pronto da archiviare o consegnare; l'impronta
+  dello ZIP viene salvata accanto in `<id>.zip.sha256`.
 
 - **Quattro lingue**: inglese, italiano, francese e spagnolo, per interfaccia, report e copertina.
 
@@ -96,10 +107,15 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 | Scorri la pagina prima della cattura | Scorre fino in fondo per caricare le immagini *lazy* |
 | Salva pagina completa (MHTML) | Salva la pagina in un unico file riapribile in Chrome |
 | Salva sorgente HTML | Salva una pagina di consultazione che mostra il DOM come testo inerte, senza interpretarlo come markup |
-| Dati di rete e certificato | **Ricarica la pagina** e registra risposta HTTP, IP, redirect, header e certificato TLS |
+| Salva testo visibile e link | Salva `<id>.text.txt` con il testo della pagina come lo legge chi la guarda e l'elenco dei link (documento principale, non gli iframe) |
+| Dati di rete e certificato | **Ricarica la pagina** e registra risposta HTTP, IP, redirect, header e certificato TLS; salva la catena in `<id>.cert.pem` |
 | Registro HAR delle risorse osservate | Con i dati di rete, salva `<id>.har` con ogni richiesta e risposta e l'SHA-256 dei contenuti |
+| Contesto di rete esterno | Dopo la cattura interroga RDAP (IANA, registro del dominio, registro degli IP) e un servizio DNS-over-HTTPS; salva `<id>.netcontext.json`. **Contatta servizi esterni** |
+| Cookie e storage | Salva `<id>.storage.json` con cookie della pagina e dei frame, localStorage e sessionStorage; dei valori solo l'impronta SHA-256, salvo diversa scelta nelle Impostazioni |
 | Marca temporale RFC 3161 | Invia l’hash del manifest (reperti e report) alla TSA; salva token `.tsr` ed esito `.timestamp.json` |
 | Report anche in JSON | Salva il report anche in formato leggibile dalle macchine |
+| Report anche in HTML | Salva `<id>.report.html`, lo stesso report impaginato per lo schermo e la stampa (attivo di default) |
+| Bozza per invio tramite PEC | Salva a parte `<id>.pec.eml`, da aprire e spedire con il programma di posta configurato con la PEC |
 | Tutto in un unico ZIP | Raggruppa tutti i file in uno ZIP non compresso, con `SHA256SUMS.txt` |
 
 ### Impostazioni
@@ -114,6 +130,8 @@ Dall'icona ⚙ del popup:
 - **Conservazione delle credenziali**: solo in memoria fino alla chiusura del browser
   (predefinito), oppure cifrate su questo computer con una password di protezione
   (AES-256-GCM, PBKDF2 a 600.000 iterazioni) da inserire a ogni avvio del browser.
+- **Contesto di rete, cookie e PEC**: servizio DNS-over-HTTPS (Cloudflare o Google), valori di
+  cookie e storage in chiaro (sconsigliato), destinatario precompilato nella bozza PEC.
 - **Avanzate**: qualità JPEG nel PDF, attesa dopo il ridimensionamento, tempo massimo di caricamento,
   altezza massima catturata, sottocartella di Download in cui salvare le acquisizioni,
   orientamento della copia per la stampa (A4 verticale o orizzontale, con testo più grande),
@@ -176,13 +194,20 @@ Con tutte le funzioni attive, ogni acquisizione produce:
 | `<id>.print.pdf` | Copia in fogli A4 per la stampa, derivata dallo stesso screenshot |
 | `<id>.mhtml` | Copia completa della pagina |
 | `<id>.html` | Pagina HTML che mostra il sorgente DOM come testo inerte, con CSP restrittiva |
+| `<id>.text.txt` | Testo visibile della pagina ed elenco dei link (password negli URL oscurate) |
 | `<id>.har` | Registro di rete HAR 1.2: richieste, risposte, impronte e (entro 50 MB) contenuti |
+| `<id>.netcontext.json` | Risposte RDAP di dominio e IP e risposte DNS, complete, con URL interrogati e orari |
+| `<id>.storage.json` | Cookie (nome, dominio, scadenza, attributi) e chiavi di localStorage/sessionStorage, con SHA-256 e lunghezza dei valori |
+| `<id>.cert.pem` | Catena dei certificati TLS del sito; si legge con `openssl x509 -in <id>.cert.pem -text -noout` |
 | `<id>.tsr` | Risposta RFC 3161 relativa al manifest (token firmato dalla TSA) |
 | `<id>.report.txt` | Report leggibile con dati, hash e istruzioni di verifica |
+| `<id>.report.html` | Lo stesso report in una pagina HTML inerte, con collegamenti ai file |
 | `<id>.report.json` | Lo stesso report in JSON |
 | `<id>.manifest.sha256` | Hash di screenshot, copie della pagina e report; è il file sottoposto a marcatura |
 | `<id>.timestamp.json` | Esito TSA, hash del manifest ed esito della verifica della firma (`verified`, `untrusted`, `invalid`, `unsupported`) con firmatario, catena e motivo, anche in caso di errore |
 | `SHA256SUMS.txt` | Hash di tutti gli altri file nello ZIP, inclusi report, manifest, token e ricevuta |
+| `<id>.pec.eml` | Bozza di messaggio per la PEC con manifest e report allegati; salvata a parte, non è un reperto |
+| `<id>.zip.sha256` | Hash dello ZIP, salvato accanto all'archivio (`sha256sum -c <id>.zip.sha256`) |
 
 `<id>` è `capture_<data>_<UUID>`: il titolo della pagina resta nei metadati e non entra nei
 nomi o nei comandi. Senza ZIP il riepilogo è `<id>.SHA256SUMS.txt`, sempre incluso.
@@ -195,6 +220,39 @@ Lo schema JSON del report è `full-page-screenshot/report@2`.
 Gli hash da soli rilevano variazioni rispetto a un riferimento conservato: non autenticano
 l’autore. Per il legame temporale verificare la firma del token e gli hash del manifest.
 Se la TSA fallisce, i reperti vengono comunque salvati con ricevuta di errore e avviso.
+
+## Contesto di rete, cookie e PEC
+
+**Contesto di rete esterno.** Un'estensione non può fare query DNS proprie né traceroute, e
+il whois classico (porta 43) non è raggiungibile dal browser. Per questo la funzione usa:
+
+- **RDAP**, il successore di whois: il file di bootstrap di IANA indica il servizio del
+  registro del dominio e del registro regionale dell'IP. Alcuni registri (ad esempio `.it`,
+  `.de`, `.eu`) non offrono RDAP: il report lo dice e rimanda alla pagina IANA con il whois del
+  registro, che puoi acquisire a sua volta con l'estensione.
+- **DNS-over-HTTPS** (Cloudflare o Google): A, AAAA, CNAME, NS, MX, TXT e CAA. È la vista di
+  quel risolutore, non quella del tuo PC; l'IP effettivamente usato dal browser resta quello
+  dei dati di rete, e il report indica se compare fra gli indirizzi del DNS.
+
+Il dominio è individuato provando le ultime tre etichette del nome e poi le ultime due
+(`bbc.co.uk`, `example.com`); il report riporta la query effettivamente usata. I servizi
+interrogati vedono il dominio e l'IP indagati: attiva la funzione solo se è accettabile.
+
+**Cookie e storage.** I valori dei cookie di sessione e i token nello storage sono credenziali:
+chi riceve il pacchetto potrebbe usarli per entrare nell'account. Di default si salvano solo
+SHA-256 e lunghezza di ogni valore, che permettono di dimostrare in seguito che un valore
+coincideva senza averlo diffuso. L'impronta non protegge però valori brevi o prevedibili (un
+numero, `yes`), che si possono ricavare per tentativi. Con i valori in chiaro, esci
+dall'account dopo la cattura, così la sessione non è più valida.
+
+**Invio tramite PEC.** In Italia la ricevuta di consegna della PEC dà una data certa,
+opponibile a terzi, all'invio di un messaggio e dei suoi allegati. Inviando il manifest, che
+contiene l'impronta di tutti i file, si ottiene una prova di esistenza simile alla marca
+temporale. Un'estensione non può spedire email: la bozza `<id>.pec.eml` si apre in Outlook (come
+messaggio da inviare) o in Thunderbird (*Modifica come nuovo messaggio*) con l'account PEC, anche
+verso la propria casella. Conserva la **ricevuta di consegna completa** insieme all'acquisizione.
+Rispetto alla marca RFC 3161 la PEC vale solo in Italia e non si verifica con strumenti standard:
+usala come alternativa quando non hai una TSA, o meglio insieme alla marca temporale.
 
 ## Verificare un'acquisizione
 
@@ -346,6 +404,9 @@ Modello di sicurezza, rischi residui e come segnalare una vulnerabilità in [SEC
 
 L'estensione non raccoglie dati e non usa server propri. Se la marca temporale è attiva,
 invia al servizio scelto **l’hash SHA-256** del manifest, mai i file né l’URL della pagina.
+Se il contesto di rete esterno è attivo (disattivato di default), invia **il nome di dominio e
+l'IP del server** a IANA, ai registri RDAP e al servizio DNS-over-HTTPS scelto; mai percorso,
+parametri, contenuti o reperti.
 Nelle Opzioni è presente un riquadro di supporto volontario con il nome utente pubblico
 Satispay dell'autore, copiabile negli appunti. Non contiene referral, link promozionali
 o richieste automatiche a Satispay e non misura contributi o clic.
@@ -369,6 +430,10 @@ lib/tsaverify.js   Verifica firma CMS e catena dei certificati della marca
 lib/tsaroots.js    CA radice incluse per i servizi TSA preimpostati
 lib/har.js         Registro HAR delle risorse di rete
 lib/integrity.js   Impronta del codice ed elenco delle altre estensioni
+lib/netcontext.js  Contesto di rete esterno: RDAP e DNS-over-HTTPS
+lib/cookies.js     Cookie e storage con impronte dei valori
+lib/reporthtml.js  Report di acquisizione in HTML
+lib/eml.js         Bozza di messaggio per l'invio tramite PEC
 docs/PROCEDURA.md  Procedura operativa di acquisizione
 lib/zip.js         Archivio ZIP non compresso
 lib/vault.js       Conservazione sicura delle credenziali della TSA

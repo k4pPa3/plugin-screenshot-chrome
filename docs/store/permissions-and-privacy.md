@@ -36,13 +36,14 @@ the selected page or present in its HTML, MHTML or response bodies.
 
 | Dashboard category, if present | Actual use to disclose |
 |---|---|
-| Website content | Screenshots, DOM/source, MHTML and optional response bodies are read for the user-requested acquisition and saved locally. |
+| Website content | Screenshots, DOM/source, visible text and links, MHTML and optional response bodies are read for the user-requested acquisition and saved locally. |
 | Web history | The selected URL and redirect history are recorded; up to ten previous entries of that tab are included only if the user enables tab history. This is not continuous browsing-history collection. |
 | Personally identifiable information | Operator, organisation, case reference and notes may identify people. Page captures can also contain personal information. |
-| Authentication information | Configured TSA credentials are processed locally and sent only to the selected TSA when required, over HTTPS. Captures of authenticated pages can retain tokens or session-related content. Certain HAR headers are redacted, but this is not general content sanitisation. |
+| Authentication information | Configured TSA credentials are processed locally and sent only to the selected TSA when required, over HTTPS. Captures of authenticated pages can retain tokens or session-related content. Certain HAR headers are redacted, but this is not general content sanitisation. With the optional cookies and storage feature, cookie and storage names and attributes are saved locally with SHA-256 digests of the values; values in clear text only if the user enables a separate setting. |
 | Health, financial/payment or personal communications data | The extension does not target accounts or services of these types, but captured pages may contain them. Review the live questionnaire's definitions and declare applicable categories; do not promise that such data can never appear in captures. No payments are processed by this extension. |
 | Installed software / device information, if asked | Optional enabled-extension inventory, browser information and the extension-code fingerprint are included only in the local acquisition report. |
 | Usage tracking, advertising profiles or background interaction telemetry | No analytics, ad profiling, keystroke logging or click telemetry is implemented. This does not negate handling of page/network data during a requested capture. |
+| Web history / website content sent to third parties, if asked | Only with the optional, off-by-default external network context: the page's host name is sent to IANA, the domain registry's RDAP service and the chosen DNS-over-HTTPS provider (Cloudflare or Google); the server IP to the regional internet registry's RDAP service. No path, query, page content, evidence or custody data is sent. |
 
 The developer does not receive the captures or settings. The user-selected TSA receives
 hash, nonce and any configured credentials, and can observe the request IP and transport

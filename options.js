@@ -94,6 +94,15 @@ function readForm() {
   settings.custody = { ...settings.custody, ...cleanCustody({ ...settings.custody,
     operator: $("custodyOperator").value, organization: $("custodyOrganization").value }) };
   settings.advanced.printOrientation = $("printOrientation").value === "landscape" ? "landscape" : "portrait";
+  settings.advanced.dohProvider = $("dohProvider").value === "google" ? "google" : "cloudflare";
+  settings.advanced.storageValues = $("storageValues").checked;
+  settings.advanced.pecRecipient = $("pecRecipient").value.trim();
+}
+
+// L'indirizzo PEC finisce nell'intestazione To: della bozza: solo se valido.
+function checkPecRecipient() {
+  const v = $("pecRecipient").value.trim();
+  $("pecWarning").hidden = !v || isValidEmailAddress(v);
 }
 
 function renderVault() {
@@ -130,6 +139,10 @@ function fillForm() {
   $("custodyOperator").value = settings.custody.operator || "";
   $("custodyOrganization").value = settings.custody.organization || "";
   $("printOrientation").value = settings.advanced.printOrientation === "landscape" ? "landscape" : "portrait";
+  $("dohProvider").value = settings.advanced.dohProvider === "google" ? "google" : "cloudflare";
+  $("storageValues").checked = !!settings.advanced.storageValues;
+  $("pecRecipient").value = settings.advanced.pecRecipient || "";
+  checkPecRecipient();
   renderVault();
   checkTsaWarning();
 }
@@ -228,8 +241,9 @@ $("language").addEventListener("change", async () => {
   if (dirty) show(saveStatus, t("options.unsaved"), "");
 });
 
-document.querySelectorAll("input, textarea, #printOrientation").forEach((el) => el.addEventListener("input", () => {
+document.querySelectorAll("input, textarea, #printOrientation, #dohProvider").forEach((el) => el.addEventListener("input", () => {
   if (el.id.startsWith("tsa")) checkTsaWarning();
+  if (el.id === "pecRecipient") checkPecRecipient();
   if (el.id !== "vaultPassword" || !locked) markDirty();
 }));
 
