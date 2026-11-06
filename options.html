@@ -146,6 +146,29 @@
   </section>
 
   <section>
+    <h2 data-i18n="options.extra.title"></h2>
+    <p class="desc" data-i18n="options.extra.desc"></p>
+    <label class="field">
+      <span data-i18n="options.extra.doh"></span>
+      <select id="dohProvider">
+        <option value="cloudflare" data-i18n="options.extra.doh.cloudflare"></option>
+        <option value="google" data-i18n="options.extra.doh.google"></option>
+      </select>
+    </label>
+    <p class="desc" data-i18n="options.extra.netHelp"></p>
+    <label class="switch">
+      <input type="checkbox" id="storageValues"><span class="track"></span>
+      <span class="text"><span data-i18n="options.extra.storageValues"></span><br><span class="desc" data-i18n="options.extra.storageValues.help"></span></span>
+    </label>
+    <label class="field" style="margin-top: 12px">
+      <span data-i18n="options.extra.pecRecipient"></span>
+      <input type="email" id="pecRecipient" maxlength="254" autocomplete="email" spellcheck="false" placeholder="pec@example.org">
+    </label>
+    <p class="desc" data-i18n="options.extra.pecRecipient.help"></p>
+    <p class="desc error" id="pecWarning" hidden data-i18n="options.extra.pecInvalid"></p>
+  </section>
+
+  <section>
     <h2 data-i18n="options.advanced.title"></h2>
     <p class="desc" data-i18n="options.advanced.desc"></p>
     <div class="grid">
@@ -210,6 +233,7 @@
 <script src="lib/locales/fr.js"></script>
 <script src="lib/locales/es.js"></script>
 <script src="lib/common.js"></script>
+<script src="lib/eml.js"></script>
 <script src="lib/tsa.js"></script>
 <script src="lib/tsaroots.js"></script>
 <script src="lib/tsaverify.js"></script>

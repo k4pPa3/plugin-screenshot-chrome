@@ -4,7 +4,7 @@
 importScripts(
   "lib/i18n.js", "lib/locales/en.js", "lib/locales/it.js", "lib/locales/fr.js", "lib/locales/es.js",
   "lib/common.js", "lib/pdf.js", "lib/zip.js", "lib/tsa.js", "lib/tsaroots.js", "lib/tsaverify.js", "lib/vault.js",
-  "lib/har.js", "lib/integrity.js"
+  "lib/har.js", "lib/integrity.js", "lib/netcontext.js", "lib/cookies.js", "lib/eml.js", "lib/reporthtml.js"
 );
 
 // Aggiornando da una versione che salvava le credenziali in chiaro, le toglie dal disco.
@@ -110,6 +110,12 @@ function shellLiteral(value) {
 
 function formatFingerprint(hex) {
   return hex.toUpperCase().match(/../g).join(":");
+}
+
+// Certificato DER (base64, come lo restituisce DevTools) in PEM, leggibile con
+// openssl x509 -in <file> -text -noout
+function derToPem(b64) {
+  return `-----BEGIN CERTIFICATE-----\n${String(b64).match(/.{1,64}/g).join("\n")}\n-----END CERTIFICATE-----\n`;
 }
 
 function isoFromSeconds(s) {
@@ -248,6 +254,8 @@ async function collectNetworkInfo(target, settings, lifecycle = null) {
           sha256: formatFingerprint(await sha256Hex(der)),
           chainLength: tableNames.length
         };
+        // Catena completa, salvata come reperto <id>.cert.pem (non nel JSON).
+        net.chainPem = tableNames.map(derToPem).join("");
       }
     } catch (_) {}
   }
@@ -301,6 +309,8 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       try {
         log("network.reload");
         result.network = await collectNetworkInfo(target, settings, networkLifecycle);
+        result.chainPem = result.network.chainPem || null;
+        delete result.network.chainPem;
         const d = result.network.document;
         log("network.response", d ? { status: d.status, ip: d.remoteIPAddress, redirects: result.network.redirects.length } : { document: null });
       } catch (err) {
@@ -406,6 +416,42 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       result.html = new TextEncoder().encode(protectHtml(String(html)));
       log("snapshot.html", { bytes: result.html.length });
     }
+    if (features.text) {
+      // Il testo come lo legge chi guarda la pagina e gli indirizzi dei link
+      // del documento principale: lo screenshot non è ricercabile, questo file
+      // sì. È un'aggiunta: se non riesce, l'acquisizione prosegue con un avviso.
+      try {
+        const page = await evaluate(target, world, `({
+          text: document.body ? document.body.innerText : "",
+          links: [...new Set([...document.links].map((a) => {
+            // Nei link SVG href non è una stringa ma un SVGAnimatedString.
+            if (typeof a.href === "string") return a.href;
+            try { return new URL(a.href.baseVal, document.baseURI).href; } catch (_) { return ""; }
+          }).filter(Boolean))]
+        })`, 30000);
+        const links = (Array.isArray(page?.links) ? page.links : []).map(String);
+        result.text = { text: String(page?.text ?? ""), links: links.slice(0, MAX_LINKS), totalLinks: links.length };
+        log("snapshot.text", { chars: result.text.text.length, links: result.text.totalLinks });
+      } catch (err) {
+        result.textError = err.message;
+        log("snapshot.text.error", { error: err.message });
+      }
+    }
+    if (features.storage) {
+      // Cookie della pagina e dei suoi frame (anche HttpOnly) e storage
+      // dell'origine. I valori restano qui solo fino alla conversione in
+      // impronte (vedi lib/cookies.js). Se non riesce, si prosegue con un avviso.
+      try {
+        const { cookies } = await send(target, "Network.getCookies");
+        const storage = await evaluate(target, world, WEB_STORAGE_EXPRESSION, 15000);
+        result.browserState = { cookies: cookies || [], storage, at: new Date().toISOString() };
+        log("snapshot.storage", { cookies: result.browserState.cookies.length,
+          localStorage: storage?.local?.total ?? null, sessionStorage: storage?.session?.total ?? null });
+      } catch (err) {
+        result.storageError = err.message;
+        log("snapshot.storage.error", { error: err.message });
+      }
+    }
     if (networkLifecycle.finish) {
       await networkLifecycle.finish();
       result.harEntries = result.network.harEntries;
@@ -424,6 +470,26 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
     log("debugger.detach");
   }
   return result;
+}
+
+const MAX_LINKS = 20000;
+
+// File di testo: intestazione, testo visibile così com'è, poi un link per riga
+// (con l'eventuale password nell'URL oscurata, come nei report).
+function buildTextFile(acq, page) {
+  const more = page.totalLinks - page.links.length;
+  return [
+    t("text.header", { url: acq.url, date: acq.date.toISOString() }),
+    "",
+    `=== ${t("text.visible")} ===`,
+    "",
+    page.text,
+    "",
+    `=== ${t("text.links", { n: page.totalLinks })} ===`,
+    "",
+    ...page.links.map(redactUrl),
+    ...(more > 0 ? [t("text.moreLinks", { n: more })] : [])
+  ].join("\n") + "\n";
 }
 
 // Scarto positivo = l'orologio del PC è indietro rispetto al riferimento.
@@ -483,6 +549,9 @@ function networkRows(net, error, compact = false) {
     }
   }
   if (net.certificate) rows.push([t("row.certFingerprint"), `SHA-256 ${net.certificate.sha256}`]);
+  if (net.certificate?.file) {
+    rows.push([t("row.certChain"), t("row.certChain.value", { file: net.certificate.file, n: net.certificate.chainLength })]);
+  }
   if (net.serverDate) {
     rows.push([t("row.serverDate"), net.cacheAgeSeconds
       ? t("net.cached", { date: net.serverDate, age: net.cacheAgeSeconds })
@@ -539,6 +608,7 @@ function envRows(acq) {
   const env = acq.environment || {};
   const rows = [
     [t("row.browser"), acq.userAgent],
+    ...(env.os ? [[t("row.os"), env.os]] : []),
     [t("row.extension"), acq.extension],
     [t("row.codeFingerprint"), env.code ? `SHA-256 ${env.code.sha256}` : t("value.notAvailable")]
   ];
@@ -574,6 +644,12 @@ function buildCover(acq, relatedFiles) {
   if (acq.features.network) {
     sections.push({ title: t("cover.network"), rows: networkRows(acq.network, acq.networkError, true) });
   }
+  if (acq.features.netContext) {
+    sections.push({ title: t("cover.netContext"), rows: netContextRows(acq.netContext, acq.netContextError, true) });
+  }
+  if (acq.features.storage && (acq.storage || acq.storageError)) {
+    sections.push({ title: t("cover.storage"), rows: storageRows(acq).filter(([label]) => label !== t("row.file")) });
+  }
   if (relatedFiles.length) {
     sections.push({
       title: t("cover.files"),
@@ -593,9 +669,17 @@ function buildCover(acq, relatedFiles) {
   ];
   const tls = acq.network?.tlsInterception;
   if (tls && tls.status !== "none") notes.unshift(t("cover.note.tlsInterception", { issuer: tls.product || tls.issuer }));
+  // Badge dell'intestazione: indicazioni brevi e quasi indipendenti dalla lingua.
+  const badges = ["SHA-256"];
+  if (acq.features.timestamp) badges.push("RFC 3161");
+  if (tls) badges.push(tls.status === "none" ? "TLS OK" : "TLS !");
+  if (acq.features.har) badges.push("HAR");
+  if (acq.features.netContext) badges.push("RDAP / DNS");
+  if (acq.custody?.caseRef) badges.push(acq.custody.caseRef.slice(0, 40));
   return {
     title: t("cover.title"),
     subtitle: `${acq.extension} - ${localIsoWithOffset(acq.date)}`,
+    badges,
     footer: acq.url.length > 90 ? acq.url.slice(0, 87) + "..." : acq.url,
     pageLabel: (n) => t("cover.pageN", { n }),
     sections,
@@ -623,7 +707,81 @@ function timestampRows(ts) {
   ];
 }
 
-function buildReportText(acq) {
+// Contesto di rete esterno: RDAP del dominio e dell'IP, DNS via DoH. In
+// copertina (compact) solo le righe essenziali.
+function netContextRows(nc, error, compact = false) {
+  if (error) return [[t("row.error"), error]];
+  if (!nc) return [];
+  const rows = [];
+  const d = nc.rdapDomain || {};
+  if (d.summary) {
+    const s = d.summary;
+    rows.push([t("row.ncDomain"), s.name || d.query]);
+    if (s.registrar) rows.push([t("row.ncRegistrar"), s.registrar + (s.registrarIanaId ? ` (IANA ${s.registrarIanaId})` : "")]);
+    if (s.registrant.length) rows.push([t("row.ncRegistrant"), s.registrant.join(", ")]);
+    if (s.registered) rows.push([t("row.ncRegistered"), s.registered]);
+    if (s.expires) rows.push([t("row.ncExpires"), s.expires]);
+    if (!compact) {
+      if (s.lastChanged) rows.push([t("row.ncChanged"), s.lastChanged]);
+      if (s.status.length) rows.push([t("row.ncStatus"), s.status.join(", ")]);
+      if (s.nameservers.length) rows.push([t("row.ncNameservers"), s.nameservers.join(", ")]);
+      if (s.dnssec !== null) rows.push(["DNSSEC", t(s.dnssec ? "nc.dnssec.yes" : "nc.dnssec.no")]);
+      rows.push([t("row.ncSource"), d.finalUrl || d.url]);
+    }
+  } else if (d.unavailable === "no-rdap") {
+    rows.push([t("row.ncDomain"), t("nc.noRdap", { tld: d.tld, url: d.whoisInfo })]);
+  } else if (d.unavailable !== "ip-literal") {
+    rows.push([t("row.ncDomain"), t("nc.failed", { error: d.error || "?" })]);
+  }
+
+  const ip = nc.rdapIp || {};
+  if (ip.summary) {
+    const s = ip.summary;
+    rows.push([t("row.ncIp"), `${ip.ip} (${t(ip.source === "browser" ? "nc.ipBrowser" : "nc.ipDns")})`]);
+    if (s.organization) rows.push([t("row.ncOrg"), s.organization]);
+    rows.push([t("row.ncNetwork"), [s.name, s.handle, s.country].filter(Boolean).join(" - ")]);
+    if (!compact) {
+      if (s.range) rows.push([t("row.ncRange"), s.range]);
+      if (s.abuseEmail) rows.push([t("row.ncAbuse"), s.abuseEmail]);
+      rows.push([t("row.ncSource"), ip.finalUrl || ip.url]);
+    }
+  } else if (ip.ip || ip.error) {
+    rows.push([t("row.ncIp"), t("nc.failed", { error: ip.error || "?" })]);
+  }
+
+  for (const q of nc.dns || []) {
+    if (compact && q.type !== "A" && q.type !== "AAAA") continue;
+    const values = q.error ? t("nc.failed", { error: q.error })
+      : (q.answers || []).filter((a) => a.type === q.type).map((a) => a.data).join(", ") || t("nc.noRecords");
+    rows.push([`DNS ${q.type}`, `${q.name}: ${values}`]);
+  }
+  if (nc.dns?.length && !compact) {
+    const validated = nc.dns.some((q) => q.dnssecValidated);
+    rows.push([t("row.ncResolver"), nc.dnsProvider + (validated ? ` - ${t("nc.dnssecValidated")}` : "")]);
+  }
+  if (nc.browserIpInDns !== null && nc.browserIpInDns !== undefined) {
+    rows.push([t("row.ncMatch"), t(nc.browserIpInDns ? "nc.match.yes" : "nc.match.no", { ip: nc.browserIp })]);
+  }
+  if (!compact) rows.push([t("row.ncCollected"), nc.collectedAt]);
+  return rows;
+}
+
+function storageRows(acq) {
+  if (acq.storageError) return [[t("row.error"), acq.storageError]];
+  const s = acq.storage;
+  if (!s) return [];
+  const count = (n) => (n === null ? t("value.notAvailable") : String(n));
+  return [
+    [t("row.cookies"), t("storage.cookies", { n: s.cookies, httpOnly: s.httpOnly, thirdParty: s.thirdParty })],
+    ["localStorage", count(s.local)],
+    ["sessionStorage", count(s.session)],
+    [t("row.storageValues"), t(s.valuesIncluded ? "storage.values.clear" : "storage.values.hash")],
+    [t("row.file"), acq.storageFile]
+  ];
+}
+
+// Sezioni comuni a report di testo e HTML (l'HTML mostra i file in tabella).
+function reportSections(acq, { withFiles = true } = {}) {
   const sections = [
     [t("report.custody"), custodyRows(acq)],
     [t("report.page"), pageRows(acq)],
@@ -631,15 +789,50 @@ function buildReportText(acq) {
     [t("report.env"), envRows(acq)]
   ];
   if (acq.features.network) sections.push([t("report.network"), networkRows(acq.network, acq.networkError)]);
+  if (acq.features.netContext) sections.push([t("report.netContext"), netContextRows(acq.netContext, acq.netContextError)]);
+  if (acq.features.storage) sections.push([t("report.storage"), storageRows(acq)]);
   if (acq.history?.length) sections.push([t("report.history"), historyRows(acq)]);
   if (acq.environment?.extensions?.length) sections.push([t("report.extensions"), extensionRows(acq)]);
   if (acq.timestamp) sections.push([t("report.timestamp"), [...timestampRows(acq.timestamp),
     [t("row.tsaQualified"), t(acq.tsaQualified ? "tsa.qualified.yes" : "tsa.qualified.no")]]]);
-  sections.push([t("report.files"), acq.files.flatMap((f) => [
-    [f.role, f.name],
-    [`  ${t("row.fileSize")}`, t("value.bytes", { n: f.size })],
-    ["  SHA-256", f.sha256]
-  ])]);
+  if (withFiles) {
+    sections.push([t("report.files"), acq.files.flatMap((f) => [
+      [f.role, f.name],
+      [`  ${t("row.fileSize")}`, t("value.bytes", { n: f.size })],
+      ["  SHA-256", f.sha256]
+    ])]);
+  }
+  return sections;
+}
+
+// Comandi di verifica, raggruppati: stessi testi nel report di testo e in HTML.
+function verifyGroups(acq) {
+  const groups = [
+    { label: t("report.sha256sum"), indent: false, lines: acq.files.map((f) => `${f.sha256}  ${f.name}`) },
+    { label: t("report.windows"), indent: true,
+      lines: acq.files.map((f) => `Get-FileHash -Algorithm SHA256 -LiteralPath ${powershellLiteral(f.name)}`) }
+  ];
+  if (acq.timestamp && !acq.timestamp.error) {
+    groups.push({ label: t("report.openssl"), indent: true, lines: [
+      `openssl ts -reply -in ${shellLiteral(acq.timestamp.file)} -text`,
+      `openssl ts -verify -data ${shellLiteral(acq.timestamp.target)} -in ${shellLiteral(acq.timestamp.file)} -CAfile tsa-ca.pem -untrusted tsa-chain.pem`,
+      `sha256sum -c ${shellLiteral(acq.timestamp.target)}`
+    ] });
+  }
+  return groups;
+}
+
+function verifyNote(acq) {
+  return t(acq.timestamp && !acq.timestamp.error ? "report.note.tsa" : "report.note.clock");
+}
+
+function headerRows(acq) {
+  const headers = acq.network?.document?.headers;
+  return headers ? Object.entries(headers).map(([k, v]) => [cleanText(k), String(v).split("\n").map(cleanText).join(" | ")]) : [];
+}
+
+function buildReportText(acq) {
+  const sections = reportSections(acq);
 
   // Colonna delle etichette larga quanto la più lunga, in ogni lingua.
   const width = Math.max(...sections.flatMap(([, rows]) => rows.map(([label]) => label.length))) + 2;
@@ -667,22 +860,62 @@ function buildReportText(acq) {
   }
 
   heading(t("report.verify"));
-  lines.push(t("report.sha256sum"));
-  for (const f of acq.files) lines.push(`${f.sha256}  ${f.name}`);
-  lines.push("", t("report.windows"));
-  for (const f of acq.files) lines.push(`  Get-FileHash -Algorithm SHA256 -LiteralPath ${powershellLiteral(f.name)}`);
-  const timestampRequested = acq.timestamp && !acq.timestamp.error;
-  if (timestampRequested) {
-    lines.push(
-      "",
-      t("report.openssl"),
-      `  openssl ts -reply -in ${shellLiteral(acq.timestamp.file)} -text`,
-      `  openssl ts -verify -data ${shellLiteral(acq.timestamp.target)} -in ${shellLiteral(acq.timestamp.file)} -CAfile tsa-ca.pem -untrusted tsa-chain.pem`,
-      `  sha256sum -c ${shellLiteral(acq.timestamp.target)}`
-    );
-  }
-  lines.push("", ...t(timestampRequested ? "report.note.tsa" : "report.note.clock").split("\n"));
+  verifyGroups(acq).forEach((g, i) => {
+    if (i) lines.push("");
+    lines.push(g.label, ...g.lines.map((l) => (g.indent ? `  ${l}` : l)));
+  });
+  lines.push("", ...verifyNote(acq).split("\n"));
   return lines.join("\r\n") + "\r\n";
+}
+
+// Dati per il report HTML (lib/reporthtml.js).
+function buildReportHtmlModel(acq, warnings) {
+  const d = acq.network?.document;
+  const tls = acq.network?.tlsInterception;
+  const main = acq.files[0];
+  const chips = [{ label: `${acq.date.toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC")}` }];
+  chips.push(acq.timestamp && !acq.timestamp.error
+    ? { label: t("html.chip.tsa"), tone: "ok" }
+    : { label: t("html.chip.noTsa"), tone: "warn" });
+  if (tls) chips.push(tls.status === "none" ? { label: t("html.chip.tlsOk"), tone: "ok" } : { label: t("html.chip.tlsBad"), tone: "bad" });
+  if (acq.features.netContext) chips.push({ label: t("html.chip.netContext"), tone: acq.netContextError ? "warn" : "ok" });
+  if (acq.features.storage) chips.push({ label: t(acq.storage?.valuesIncluded ? "html.chip.storageClear" : "html.chip.storage"),
+    tone: acq.storage?.valuesIncluded ? "warn" : "ok" });
+  chips.push(warnings.length ? { label: t("html.chip.warnings", { n: warnings.length }), tone: "warn" } : { label: t("html.chip.noWarnings"), tone: "ok" });
+
+  const summary = [
+    [t("html.tile.captured"), localIsoWithOffset(acq.date)],
+    [t("html.tile.size"), t("row.size.value", { width: acq.width, height: acq.height })]
+  ];
+  if (d) summary.push([t("row.serverIp"), d.remoteIPAddress || t("value.notAvailable")], [t("row.httpResponse"), `${d.status} ${d.statusText || ""}`.trim()]);
+  if (acq.custody?.caseRef) summary.push([t("row.caseRef"), acq.custody.caseRef]);
+  if (main) summary.push([t("html.tile.mainHash"), main.sha256]);
+
+  return {
+    lang: currentLanguage,
+    generator: acq.extension,
+    id: acq.id,
+    eyebrow: t("html.eyebrow"),
+    title: t("report.title"),
+    pageTitle: acq.title || acq.url,
+    url: acq.url,
+    chips,
+    summary,
+    warnings: warnings.map((w) => cleanText(tm(w))),
+    sections: reportSections(acq, { withFiles: false }).map(([name, rows]) =>
+      [name, rows.map(([label, value]) => [cleanText(label), cleanText(value)])]),
+    files: acq.files.map((f) => ({ role: f.role, name: f.name, size: t("value.bytes", { n: f.size }), sha256: f.sha256 })),
+    headers: headerRows(acq),
+    log: (acq.log || []).map((e) => ({ at: e.at, step: e.step, detail: logLines([{ ...e, at: "", step: "" }])[0].trim() })),
+    verify: verifyGroups(acq),
+    verifyNotes: [verifyNote(acq).replace(/\n/g, " ")],
+    footer: `${acq.extension} - ${t("row.codeFingerprint")}: ${acq.environment?.code?.sha256 || t("value.notAvailable")}`,
+    labels: {
+      warnings: t("html.warnings"), files: t("report.files"), fileRole: t("html.fileRole"), fileName: t("html.fileName"),
+      fileSize: t("row.fileSize"), headers: t("report.headers"), log: t("report.log"), logNote: t("report.logNote"),
+      verify: t("report.verify")
+    }
+  };
 }
 
 function buildReportJson(acq) {
@@ -701,9 +934,14 @@ function buildReportJson(acq) {
       emulatedWidth: acq.emulatedWidth || null
     },
     custody: acq.custody || null,
-    environment: { userAgent: acq.userAgent, extension: acq.extension,
+    environment: { userAgent: acq.userAgent, os: acq.environment?.os || null, extension: acq.extension,
       code: acq.environment?.code || null, extensions: acq.environment?.extensions || null },
     history: acq.history,
+    netContext: acq.features.netContext ? (acq.netContext ? { file: `${acq.id}.netcontext.json`, host: acq.netContext.host,
+      domain: acq.netContext.rdapDomain?.summary || null, ip: acq.netContext.rdapIp?.summary ? { address: acq.netContext.rdapIp.ip,
+        source: acq.netContext.rdapIp.source, ...acq.netContext.rdapIp.summary } : null, browserIpInDns: acq.netContext.browserIpInDns }
+      : { error: acq.netContextError || null }) : null,
+    storage: acq.features.storage ? (acq.storage ? { file: acq.storageFile, ...acq.storage } : { error: acq.storageError || null }) : null,
     tsaQualified: acq.tsaQualified,
     options: { format: acq.format, ...acq.features },
     network: acq.features.network ? (acq.network || { error: acq.networkError }) : null,
@@ -841,6 +1079,43 @@ async function run(tab, options = {}) {
   };
 
   const base = `capture_${fileTimestamp(shot.date)}_${crypto.randomUUID()}`;
+  acq.id = base;
+
+  // Contesto di rete esterno, a pagina già acquisita: titolari di dominio e
+  // rete del server, risoluzione DNS. Contatta servizi terzi (vedi lib/netcontext.js).
+  if (features.netContext) {
+    let pageUrl = null;
+    try { pageUrl = new URL(shot.url); } catch (_) {}
+    if (pageUrl && /^https?:$/.test(pageUrl.protocol)) {
+      step("netcontext.start", { host: pageUrl.hostname, dns: settings.advanced.dohProvider });
+      try {
+        acq.netContext = await collectNetContext(pageUrl.href, {
+          browserIp: shot.network?.document?.remoteIPAddress || "", provider: settings.advanced.dohProvider
+        });
+        const nc = acq.netContext;
+        step("netcontext.done", { domain: nc.rdapDomain?.summary ? nc.rdapDomain.query : (nc.rdapDomain?.unavailable || nc.rdapDomain?.error || null),
+          ip: nc.rdapIp?.ip || null, dnsAnswered: nc.dns.filter((q) => !q.error).length, browserIpInDns: nc.browserIpInDns });
+      } catch (err) {
+        acq.netContextError = err.message;
+        step("netcontext.error", { error: err.message });
+      }
+    } else {
+      acq.netContextError = t("nc.notWeb");
+    }
+  }
+
+  // Cookie e storage: i valori diventano impronte, salvo scelta esplicita.
+  if (shot.browserState) {
+    const state = await buildBrowserState(shot.browserState, {
+      pageUrl: acq.url, includeValues: !!settings.advanced.storageValues, collectedAt: shot.browserState.at
+    });
+    delete shot.browserState;
+    acq.storage = browserStateSummary(state);
+    acq.storageState = state;
+  } else if (shot.storageError) {
+    acq.storageError = shot.storageError;
+  }
+
   const related = [];
   if (shot.mhtml) related.push(await fileEntry(`${base}.mhtml`, "mhtml", t("role.mhtml"), shot.mhtml, "multipart/related"));
   if (shot.html) related.push(await fileEntry(`${base}.html`, "html", t("role.html"), shot.html, "text/html;charset=utf-8"));
@@ -849,6 +1124,25 @@ async function run(tab, options = {}) {
       pageTitle: acq.title, collection: shot.network?.harCollection,
       startedAt: shot.network?.harCollection?.startedAt || shot.date.toISOString(), redacted: t("value.redacted") });
     related.push(await fileEntry(`${base}.har`, "har", t("role.har"), new TextEncoder().encode(JSON.stringify(har)), "application/json"));
+  }
+  if (shot.text) {
+    related.push(await fileEntry(`${base}.text.txt`, "text", t("role.text"),
+      new TextEncoder().encode(buildTextFile(acq, shot.text)), "text/plain;charset=utf-8"));
+  }
+  if (acq.netContext) {
+    related.push(await fileEntry(`${base}.netcontext.json`, "netcontext", t("role.netContext"),
+      new TextEncoder().encode(JSON.stringify(acq.netContext, null, 2)), "application/json"));
+  }
+  if (acq.storageState) {
+    acq.storageFile = `${base}.storage.json`;
+    related.push(await fileEntry(acq.storageFile, "storage", t("role.storage"),
+      new TextEncoder().encode(JSON.stringify(acq.storageState, null, 2)), "application/json"));
+    delete acq.storageState;
+  }
+  if (shot.chainPem && acq.network?.certificate) {
+    acq.network.certificate.file = `${base}.cert.pem`;
+    related.push(await fileEntry(`${base}.cert.pem`, "certificate", t("role.cert"),
+      new TextEncoder().encode(shot.chainPem), "application/x-pem-file"));
   }
 
   let main, printEntry = null;
@@ -902,6 +1196,10 @@ async function run(tab, options = {}) {
     receipt: `${base}.timestamp.json`
   };
   if (shot.networkError) warnings.push(msg("warn.network", { error: shot.networkError }));
+  if (shot.textError) warnings.push(msg("warn.text", { error: shot.textError }));
+  if (acq.netContextError) warnings.push(msg("warn.netContext", { error: acq.netContextError }));
+  if (acq.storageError) warnings.push(msg("warn.storage", { error: acq.storageError }));
+  if (acq.storage?.valuesIncluded) warnings.push(msg("warn.storageValues"));
   const harCollection = shot.network?.harCollection;
   if (harCollection && (harCollection.pending || harCollection.droppedRequests || harCollection.loadTimedOut)) {
     warnings.push(msg("warn.harIncomplete", harCollection));
@@ -929,6 +1227,10 @@ async function run(tab, options = {}) {
   outputs.push({ name: `${base}.report.txt`, bytes: enc.encode(buildReportText(acq)), mime: "text/plain;charset=utf-8" });
   if (features.jsonReport) {
     outputs.push({ name: `${base}.report.json`, bytes: enc.encode(buildReportJson(acq)), mime: "application/json" });
+  }
+  if (features.htmlReport) {
+    outputs.push({ name: `${base}.report.html`, bytes: enc.encode(buildReportHtml(buildReportHtmlModel(acq, warnings))),
+      mime: "text/html;charset=utf-8" });
   }
 
   // Manifest immutabile: tutti i reperti e i report, senza token o ricevute
@@ -966,6 +1268,30 @@ async function run(tab, options = {}) {
     outputs.push({ name: `${base}.timestamp.json`, bytes: enc.encode(JSON.stringify(receipt, null, 2)), mime: "application/json" });
   }
 
+  // Bozza PEC: manifest e report allegati, impronta del manifest nel testo.
+  // Si salva a parte (non è un reperto: allega copie di file già nel manifest).
+  let pecDraft = null;
+  if (features.pec) {
+    const report = outputs.find((f) => f.name === `${base}.report.txt`);
+    const manifestHash = await sha256Hex(evidenceManifest.bytes);
+    let host = "";
+    try { host = new URL(acq.url).hostname; } catch (_) {}
+    pecDraft = {
+      name: `${base}.pec.eml`,
+      bytes: buildEml({
+        to: settings.advanced.pecRecipient,
+        subject: t("pec.subject", { host: host || acq.url, date: acq.date.toISOString() }),
+        body: t("pec.body", {
+          url: acq.url, date: acq.date.toISOString(), id: base,
+          caseRef: custody.caseRef || t("custody.notGiven"), operator: custody.operator || t("custody.notGiven"),
+          manifest: evidenceManifest.name, manifestHash, main: main.name, mainHash: main.sha256,
+          tsa: t(acq.timestamp && acq.timestamp.status !== "failed" ? "pec.body.tsa" : "pec.body.noTsa")
+        }),
+        attachments: [evidenceManifest, report].filter(Boolean)
+      })
+    };
+  }
+
   // Il riepilogo finale include anche manifest, token e ricevuta. Esclude solo
   // se stesso. Il manifest marcato protegge il contenuto probatorio e i report.
   outputs.push({ name: `${base}.SHA256SUMS.txt`, bytes: enc.encode(await checksums(outputs)), mime: "text/plain;charset=utf-8" });
@@ -977,8 +1303,24 @@ async function run(tab, options = {}) {
     const zip = makeZip(outputs, shot.date);
     zipHash = await sha256Hex(zip);
     await download(zip, "application/zip", `${base}.zip`, subfolder);
+    // L'impronta dello ZIP non può stare nello ZIP: la si salva accanto, in
+    // formato sha256sum -c, così non resta solo nel popup. Lo ZIP è già
+    // salvato: se questo file non riesce basta un avviso, l'impronta è nel popup.
+    try {
+      await download(enc.encode(`${zipHash}  ${base}.zip\n`), "text/plain;charset=utf-8", `${base}.zip.sha256`, subfolder);
+    } catch (err) {
+      warnings.push(msg("warn.zipChecksum", { error: err.message }));
+    }
   } else {
     for (const f of outputs) await download(f.bytes, f.mime, f.name, subfolder);
+  }
+  if (pecDraft) {
+    try {
+      await download(pecDraft.bytes, "message/rfc822", pecDraft.name, subfolder);
+      notes.push(msg("note.pec", { file: pecDraft.name }));
+    } catch (err) {
+      warnings.push(msg("warn.pec", { error: err.message }));
+    }
   }
 
   return {

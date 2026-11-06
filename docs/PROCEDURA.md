@@ -46,6 +46,10 @@ ufficio e al procedimento.
 2. Attiva almeno: *Pagina di copertina*, *Salva pagina completa (MHTML)*, *Salva sorgente HTML*,
    *Dati di rete e certificato*, *Registro HAR*, *Marca temporale*, *Report anche in JSON*,
    *Tutto in un unico ZIP*. Se servirà una copia cartacea, *Copia PDF per la stampa*.
+   Se serve documentare chi gestisce il sito e se l'indagine lo consente, attiva anche
+   *Contesto di rete esterno* (comunica dominio e IP a servizi pubblici RDAP e DNS). Per
+   documentare l'account usato, *Cookie e storage* (solo impronte dei valori). Se non
+   disponi di una TSA o vuoi una seconda data certa, *Bozza per invio tramite PEC*.
 3. Premi **Cattura pagina intera** e non interagire con la scheda fino al termine.
 4. Se compare l'avviso di **connessione ispezionata**, valuta un ambiente autorizzato
    privo di ispezione e premi *Ricontrolla* dopo l'eventuale cambio di configurazione.
@@ -62,10 +66,13 @@ ufficio e al procedimento.
    sha256sum -c "<id>.manifest.sha256"
    openssl ts -verify -data "<id>.manifest.sha256" -in "<id>.tsr" -CAfile <CA della TSA> -untrusted <certificato TSA>
    ```
-2. Annota l'SHA-256 dello ZIP (mostrato nel popup) nel verbale o nel registro del caso.
-3. Copia lo ZIP **inalterato** su almeno due supporti, di cui uno non riscrivibile o in un
+2. Annota l'SHA-256 dello ZIP (mostrato nel popup e salvato in `<id>.zip.sha256`) nel verbale
+   o nel registro del caso.
+3. Se hai preparato la bozza PEC, aprila con l'account PEC, inviala e salva la **ricevuta di
+   consegna completa** accanto allo ZIP.
+4. Copia lo ZIP **inalterato** su almeno due supporti, di cui uno non riscrivibile o in un
    archivio con controllo degli accessi; registra ogni trasferimento (chi, quando, dove).
-4. Non aprire l'MHTML fuori da un ambiente isolato: è una copia attiva della pagina.
+5. Non aprire l'MHTML fuori da un ambiente isolato: è una copia attiva della pagina.
 
 ## 5. Cosa riportare nel verbale
 

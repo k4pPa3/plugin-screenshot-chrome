@@ -4,6 +4,56 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [Non rilasciato]
+
+### Aggiunto
+
+- Testo visibile ed elenco dei link della pagina (`<id>.text.txt`, facoltativo), letti nel
+  mondo isolato: a differenza dello screenshot si può cercare. Password negli URL oscurate,
+  massimo 20.000 link, solo documento principale (non gli iframe). Incluso in manifest e
+  marca temporale. Se la lettura non riesce, l'acquisizione prosegue con un avviso.
+- Catena completa dei certificati TLS del sito in PEM (`<id>.cert.pem`) con i dati di rete
+  su pagine `https`; prima c'era solo l'impronta del certificato. Inclusa nel manifest.
+- Sistema operativo e architettura nei dati dell'ambiente (report e copertina).
+- Impronta dello ZIP salvata accanto all'archivio in `<id>.zip.sha256`, in formato
+  `sha256sum -c`; prima compariva solo nel popup. Se questo file non si salva, lo ZIP resta
+  valido e il popup mostra un avviso con l'impronta.
+- Contesto di rete esterno (facoltativo, disattivato di default, `<id>.netcontext.json`):
+  titolari del dominio e della rete IP del server via RDAP, con il bootstrap ufficiale IANA,
+  e record A, AAAA, CNAME, NS, MX, TXT e CAA via DNS-over-HTTPS (Cloudflare o Google). Il
+  report indica se l'IP usato dal browser compare nel DNS; per i registri senza RDAP (es.
+  `.it`) rimanda alla pagina whois del registro. Invia ai servizi solo nome host e IP.
+- Cookie e storage (facoltativo, `<id>.storage.json`): cookie della pagina e dei frame,
+  anche HttpOnly, e chiavi di localStorage e sessionStorage, con SHA-256 e lunghezza dei
+  valori. Valori in chiaro solo con un'opzione esplicita nelle Impostazioni, con avviso.
+- Report HTML (`<id>.report.html`, attivo di default): stesso contenuto del report di testo
+  in una pagina moderna e stampabile, con sintesi, indicatori di stato, tabella dei file
+  collegati, registro come linea temporale e comandi di verifica. Nessuno script né risorsa
+  esterna (CSP), tutti i valori sottoposti a escape. Incluso nel manifest.
+- Bozza per l'invio tramite PEC (`<id>.pec.eml`, facoltativa): manifest e report allegati,
+  impronta del manifest nel testo, destinatario configurabile. Si apre come bozza in Outlook
+  o Thunderbird; la ricevuta di consegna dà una data certa all'invio del manifest.
+- Nuova sezione delle Impostazioni *Contesto di rete, cookie e PEC*.
+
+### Modificato
+
+- Copertina del PDF rinnovata: intestazione con striscia di colore e badge (SHA-256,
+  RFC 3161, esito TLS, riferimento del caso), sezioni con segno di colore, righe a bande e
+  note in un riquadro. Resta su una sola pagina come prima.
+- Report di testo e HTML generati dalle stesse sezioni; il testo resta invariato.
+
+### Test
+
+- Regressioni per testo e link, catena PEM, sistema operativo e impronta dello ZIP; il
+  test in Chromium controlla anche testo e link letti dalla pagina.
+- Il test in Chromium avvia il browser in inglese, così passa anche su sistemi in altre lingue,
+  e verifica la raccolta reale di un cookie HttpOnly e di una voce di localStorage.
+- Regressioni per RDAP e DNS con servizi simulati (bootstrap solo https, suffissi di secondo
+  livello, registri senza RDAP, CIDR IPv4/IPv6), per l'assenza di connessioni esterne con le
+  impostazioni predefinite, per cookie e storage senza valori in nessun file, per il report HTML
+  inerte e per la bozza PEC (MIME valido, allegato identico al manifest, nessuna intestazione
+  iniettabile).
+
 ## [1.7.6] - 2026-11-05
 
 ### Corretto

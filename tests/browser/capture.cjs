@@ -13,7 +13,8 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     if (req.url === '/redirect') { res.writeHead(302, { Location: '/page' }); res.end('REDIRECT'); }
     else if (req.url === '/page') {
       res.setHeader('Content-Type', 'text/html');
-      res.end(`<html><body style="height:2600px"><h1>Capture fixture</h1><script>
+      res.setHeader('Set-Cookie', 'fwc_session=secret-cookie-value; Path=/; HttpOnly');
+      res.end(`<html><body style="height:2600px"><h1>Capture fixture</h1><script>localStorage.setItem('fwc_key', 'secret-storage-value')</script><a href="/lazy">lazy link</a><svg><a href="/svg-link"><text>svg</text></a></svg><script>
         let started = false;
         addEventListener('scroll', () => { if (started || scrollY < 100) return;
           started = true; fetch('/lazy'); fetch('/pending'); });
@@ -31,7 +32,8 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     const root = path.resolve(__dirname, '../..');
     browser = await chromium.launchPersistentContext(profile, {
       channel: 'chromium', headless: true, acceptDownloads: true,
-      args: ['--no-sandbox', `--disable-extensions-except=${root}`, `--load-extension=${root}`]
+      // English UI on any machine: assertions match English messages.
+      args: ['--no-sandbox', '--lang=en-US', `--disable-extensions-except=${root}`, `--load-extension=${root}`]
     });
     const worker = browser.serviceWorkers()[0] || await browser.waitForEvent('serviceworker');
     const page = await browser.newPage();
@@ -41,12 +43,31 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     const shot = await worker.evaluate(async base => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const settings = { ...DEFAULT_SETTINGS, format: 'png', features: {
-        ...DEFAULT_SETTINGS.features, network: true, har: true, autoScroll: true
+        ...DEFAULT_SETTINGS.features, network: true, har: true, autoScroll: true, text: true, storage: true
       }, advanced: { ...DEFAULT_SETTINGS.advanced, loadTimeout: 4000, settleDelay: 50 } };
       const shot = await capture(tab, settings);
-      return { entries: shot.harEntries, collection: shot.network.harCollection, imageSize: shot.image.length };
+      // As in run(): the URL from the navigation history (tab.url needs the tabs permission).
+      const state = await buildBrowserState(shot.browserState, { pageUrl: shot.url, includeValues: false, collectedAt: shot.browserState.at });
+      return { entries: shot.harEntries, collection: shot.network.harCollection, imageSize: shot.image.length, text: shot.text,
+        storageError: shot.storageError || null, state };
     }, base);
     assert.ok(shot.imageSize > 100);
+    // Visible text and link list read from the isolated world.
+    assert.match(shot.text.text, /Capture fixture/);
+    // SVG links, if the browser lists them, must be real URLs, not "[object ...]".
+    assert.ok(shot.text.links.includes(`${base}/lazy`));
+    for (const link of shot.text.links) assert.match(link, /^http:\/\/127\.0\.0\.1:\d+\/(lazy|svg-link)$/);
+    assert.equal(shot.text.totalLinks, shot.text.links.length);
+    t.diagnostic(`text links: ${shot.text.links.join(', ')}`);
+    // Cookies (including HttpOnly) via the debugger and localStorage via the
+    // isolated world; values are reduced to SHA-256.
+    assert.equal(shot.storageError, null);
+    const cookie = shot.state.cookies.find(c => c.name === 'fwc_session');
+    assert.ok(cookie && cookie.httpOnly && !cookie.thirdParty);
+    assert.equal(cookie.valueSha256, createHash('sha256').update('secret-cookie-value').digest('hex'));
+    const item = shot.state.localStorage.entries.find(e => e.key === 'fwc_key');
+    assert.equal(item.valueSha256, createHash('sha256').update('secret-storage-value').digest('hex'));
+    assert.doesNotMatch(JSON.stringify(shot.state), /secret-(cookie|storage)-value/);
     const redirect = shot.entries.find(e => e.response?.status === 302);
     assert.ok(redirect);
     assert.equal(redirect.sha256, undefined);
