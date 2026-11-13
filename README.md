@@ -472,8 +472,8 @@ python tools/make_icons.py   # rigenera le icone (richiede Pillow)
 poi crea e invia un tag con la stessa versione. GitHub Actions crea il pacchetto e la release.
 
 ```sh
-git tag v1.8.1
-git push origin v1.8.1
+git tag v1.8.2
+git push origin v1.8.2
 ```
 
 ## Licenza
