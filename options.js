@@ -402,14 +402,28 @@ $("checkUpdates").addEventListener("click", async () => {
 
 $("downloadUpdate").addEventListener("click", async () => {
   if (!availableUpdate?.downloadUrl || startingUpdateDownload) return;
-  const { downloadUrl, filename } = availableUpdate;
+  const update = availableUpdate;
   startingUpdateDownload = true;
+  updateStatus = msg("updates.verifying");
   renderUpdates();
   try {
-    await chrome.downloads.download({ url: downloadUrl, filename, saveAs: true, conflictAction: "uniquify" });
-    updateStatus = msg("updates.started");
-  } catch (_) {
-    updateStatus = msg("updates.downloadError");
+    const granted = await chrome.permissions.request({ origins: UPDATE_ASSET_ORIGINS });
+    if (!granted) {
+      updateStatus = msg("updates.downloadDenied");
+      return;
+    }
+    const bytes = await fetchVerifiedUpdate(update);
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
+    try {
+      await chrome.downloads.download({ url, filename: update.filename, saveAs: true, conflictAction: "uniquify" });
+      updateStatus = msg("updates.started");
+    } finally {
+      // Consenti al browser di aprire il Blob anche dopo la finestra Salva con nome.
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (error) {
+    updateStatus = msg(error.code === "updates.integrityError" || error.code === "tsa.tooLarge"
+      ? "updates.integrityError" : "updates.downloadError");
   } finally {
     startingUpdateDownload = false;
     renderUpdates();

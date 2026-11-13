@@ -93,7 +93,7 @@ basta premere ↻ sull'estensione in `chrome://extensions`.
 
 In **Impostazioni → Aggiornamenti**, premi **Verifica aggiornamenti** e consenti l’accesso a
 GitHub quando richiesto. Se c’è una versione più recente, **Scarica ZIP** scarica il pacchetto
-dell’estensione. Estrai i file nella cartella già caricata, sovrascrivili e premi ↻ nella
+dell’estensione dopo aver verificato dimensione e SHA-256 pubblicati da GitHub. Estrai i file nella cartella già caricata, sovrascrivili e premi ↻ nella
 pagina delle estensioni del browser. Usare la stessa cartella conserva l’identità
 dell’estensione e le impostazioni locali. Per le installazioni da Chrome Web Store,
 Chrome gestisce gli aggiornamenti.

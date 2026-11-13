@@ -79,7 +79,8 @@ Per le installazioni da cartella, **Verifica aggiornamenti** interroga l’API p
 su richiesta e il confronto delle versioni avviene sul dispositivo. La richiesta non contiene
 cookie, credenziali, dati delle acquisizioni o la versione installata. GitHub può osservare
 l’indirizzo IP e i metadati della connessione. **Scarica ZIP** avvia il download del pacchetto
-dalla pagina della release GitHub tramite il browser.
+da GitHub e dal suo host per gli allegati (`release-assets.githubusercontent.com`),
+senza credenziali. L’estensione verifica dimensione e SHA-256 prima di salvare lo ZIP.
 
 ## Connessioni esterne e marca temporale facoltativa
 
