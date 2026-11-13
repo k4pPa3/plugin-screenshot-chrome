@@ -114,13 +114,59 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     }, base);
     assert.match(interrupted, /Download not completed/);
 
+    // Open the popup as a page to verify the actual controls and saved settings.
+    const extensionId = new URL(worker.url()).host;
+    const popup = await browser.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.locator('[data-feature="screenshot"]').waitFor({ state: 'attached' });
+    await popup.waitForFunction(() => document.querySelector('[data-feature="screenshot"]').checked);
+    await popup.evaluate(() => {
+      for (const input of [...document.querySelectorAll('[data-feature]')].reverse()) {
+        const enabled = input.dataset.feature === 'mhtml';
+        if (input.checked !== enabled) input.click();
+      }
+    });
+    await popup.waitForFunction(async () => {
+      const { settings } = await chrome.storage.local.get('settings');
+      return Object.entries(settings?.features || {}).filter(([, enabled]) => enabled).map(([key]) => key).join() === 'mhtml';
+    });
+    assert.equal(await popup.locator('#format').isDisabled(), true);
+    assert.equal(await popup.locator('[data-feature="printPdf"]').isDisabled(), true);
+    await popup.close();
+    await page.bringToFront();
+
+    const mhtmlExport = await worker.evaluate(async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const original = chrome.downloads.download.bind(chrome.downloads);
+      const downloads = [];
+      let downloadId;
+      chrome.downloads.download = async options => {
+        downloads.push({ filename: options.filename, saveAs: options.saveAs });
+        // Headless Chromium has no native file picker. Route the download to the CDP test directory.
+        downloadId = await original({ ...options, saveAs: false });
+        return downloadId;
+      };
+      try {
+        const result = await run(tab);
+        const [item] = await chrome.downloads.search({ id: downloadId });
+        return { downloads, result, savedPath: item.filename };
+      } finally {
+        chrome.downloads.download = original;
+      }
+    });
+    assert.deepEqual(mhtmlExport.downloads, [{ filename: mhtmlExport.result.filename, saveAs: true }]);
+    assert.match(mhtmlExport.result.filename, /\.mhtml$/);
+    const mhtml = await fs.readFile(mhtmlExport.savedPath, 'utf8');
+    assert.match(mhtml, /Content-Type: multipart\/related/i);
+    assert.match(mhtml, /Capture fixture/);
+    assert.equal(createHash('sha256').update(mhtml).digest('hex'), mhtmlExport.result.hash);
+
     // The support panel stays inside Options and never contacts Satispay on load.
     const options = await browser.newPage();
     const externalRequests = [];
     options.on('request', request => {
       if (/^https?:/.test(request.url())) externalRequests.push(request.url());
     });
-    const extensionId = new URL(worker.url()).host;
     await options.goto(`chrome-extension://${extensionId}/options.html`);
     await options.locator('#language').selectOption('it');
     await options.bringToFront();

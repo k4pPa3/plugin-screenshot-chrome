@@ -100,7 +100,8 @@ async function runWith(features, shotExtra = {}, advanced = {}) {
     capture = async () => ({date:new Date('2026-11-06T08:00:00Z'),url:'https://example.test/a',title:'<script>alert(1)</script>',
       width:800,height:600,image:new Uint8Array([1,2,3]),network:null,networkError:null,...testShot});
     globalThis.files = [];
-    download = async (bytes, mime, name) => { globalThis.files.push({ name, bytes }); };
+    makeZip = files => { globalThis.files = files; return new Uint8Array(); };
+    download = async () => {};
   `);
   const result = await c.run({ title: 't', url: 'https://example.test/a' });
   return { c, files: c.files, result };
@@ -154,7 +155,8 @@ test('network context result is evidence in the manifest and summarised in the r
     getSettings = async () => ({...DEFAULT_SETTINGS, format:'png', features: {...DEFAULT_SETTINGS.features, jsonReport:true, netContext:true}});
     capture = async () => ({date:new Date('2026-11-06T08:00:00Z'),url:'https://www.example.com/',title:'t',width:800,height:600,
       image:new Uint8Array([1]),network:{redirects:[],document:{url:'https://www.example.com/',status:200,headers:{},remoteIPAddress:'93.184.215.14'}},networkError:null});
-    globalThis.files = []; download = async (b, m, name) => { globalThis.files.push({ name, bytes: b }); };
+    makeZip = files => { globalThis.files = files; return new Uint8Array(); };
+    download = async () => {};
   `);
   await c.run({ title: 't', url: 'https://www.example.com/' });
   const nc = find(c.files, '.netcontext.json');
@@ -182,7 +184,7 @@ test('escapeHtml covers all special characters', async () => {
   assert.equal(c.escapeHtml(`<a href="x" onclick='y'>&</a>`), '&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;&lt;/a&gt;');
 });
 
-test('PEC draft: valid MIME, manifest attached unchanged, hash in the body, saved outside the evidence', async () => {
+test('PEC draft: valid MIME, manifest attached unchanged, hash in the body, bundled outside the evidence manifest', async () => {
   const { files, result, c } = await runWith({ pec: true, zip: true }, {}, { pecRecipient: 'me@pec.example.it' });
   const eml = find(files, '.pec.eml');
   assert.ok(eml);
@@ -197,8 +199,9 @@ test('PEC draft: valid MIME, manifest attached unchanged, hash in the body, save
   const manifestHash = Buffer.from(await webcrypto.subtle.digest('SHA-256', manifest)).toString('hex');
   assert.ok(decode(parts[0]).toString('utf8').includes(manifestHash));
   assert.ok(result.notes.some((n) => c.tm(n).includes(eml.name)));
-  // The draft is a separate download, never inside the ZIP.
-  assert.ok(find(files, '.zip') && !files.some((f) => f.name === 'SHA256SUMS.txt'));
+  assert.ok(result.zipHash);
+  assert.doesNotMatch(manifest.toString('utf8'), /\.pec\.eml/);
+  assert.ok(text(files.find(f => f.name === 'SHA256SUMS.txt').bytes).includes(eml.name));
 });
 
 test('PEC draft: an invalid recipient cannot inject headers', async () => {

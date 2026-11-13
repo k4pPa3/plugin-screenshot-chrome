@@ -326,7 +326,8 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       }
     }
     // Dopo l'eventuale ricarica: il mondo isolato è legato al documento.
-    const world = await createIsolatedWorld(target);
+    const world = features.autoScroll || features.screenshot || features.html || features.text || features.storage
+      ? await createIsolatedWorld(target) : null;
     if (features.autoScroll) {
       log("page.autoScroll");
       await autoScroll(target, world, settings);
@@ -337,60 +338,64 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
     const pageWidth = Math.ceil(width || viewport.clientWidth);
     const mobile = !!width && width < 768;
 
-    const setViewport = (height) =>
-      send(target, "Emulation.setDeviceMetricsOverride", {
-        width: pageWidth,
-        height,
-        deviceScaleFactor: 0,
-        mobile
-      });
-    // Limite all'altezza: una pagina che cresce all'infinito esaurirebbe la
-    // memoria dell'estensione.
-    const maxHeight = Number(advanced.maxHeight) || DEFAULT_SETTINGS.advanced.maxHeight;
-    const contentHeight = async () => {
-      const m = await send(target, "Page.getLayoutMetrics");
-      const h = Math.ceil((m.cssContentSize || m.contentSize).height);
-      if (h > maxHeight) result.fullHeight = Math.max(result.fullHeight || 0, h);
-      return Math.min(h, maxHeight);
-    };
+    let pageHeight = Math.ceil((initial.cssContentSize || initial.contentSize).height);
+    result.width = features.screenshot ? pageWidth : Math.ceil(viewport.clientWidth);
+    if (features.screenshot) {
+      const setViewport = (height) =>
+        send(target, "Emulation.setDeviceMetricsOverride", {
+          width: pageWidth,
+          height,
+          deviceScaleFactor: 0,
+          mobile
+        });
+      // Limite all'altezza: una pagina che cresce all'infinito esaurirebbe la
+      // memoria dell'estensione.
+      const maxHeight = Number(advanced.maxHeight) || DEFAULT_SETTINGS.advanced.maxHeight;
+      const contentHeight = async () => {
+        const m = await send(target, "Page.getLayoutMetrics");
+        const h = Math.ceil((m.cssContentSize || m.contentSize).height);
+        if (h > maxHeight) result.fullHeight = Math.max(result.fullHeight || 0, h);
+        return Math.min(h, maxHeight);
+      };
 
-    // Prima imposta la larghezza, poi allarga la finestra simulata fino
-    // all'altezza dell'intera pagina, come fa DevTools: così anche i siti
-    // che disegnano solo la parte visibile (es. Reddit) vengono resi per
-    // intero invece di ripetere la stessa porzione.
-    await setViewport(viewport.clientHeight);
-    await sleep(300);
-    let pageHeight = await contentHeight();
-    for (let i = 0; i < 3; i++) {
-      await setViewport(pageHeight);
-      await sleep(advanced.settleDelay);
-      const h = await contentHeight();
-      if (h <= pageHeight) break;
-      pageHeight = h; // la pagina ha caricato altro contenuto
+      // Prima imposta la larghezza, poi allarga la finestra simulata fino
+      // all'altezza dell'intera pagina, come fa DevTools: così anche i siti
+      // che disegnano solo la parte visibile (es. Reddit) vengono resi per
+      // intero invece di ripetere la stessa porzione.
+      await setViewport(viewport.clientHeight);
+      await sleep(300);
+      pageHeight = await contentHeight();
+      for (let i = 0; i < 3; i++) {
+        await setViewport(pageHeight);
+        await sleep(advanced.settleDelay);
+        const h = await contentHeight();
+        if (h <= pageHeight) break;
+        pageHeight = h; // la pagina ha caricato altro contenuto
+      }
+      log("page.layout", { width: pageWidth, height: pageHeight, truncatedFrom: result.fullHeight || null });
+      await evaluate(target, world, "window.scrollTo(0, 0)", 5000);
+      await sleep(200);
+
+      result.date = new Date();
+      // Il PDF incorpora lo screenshot come JPEG.
+      const imageFormat = settings.format === "png" ? "png" : "jpeg";
+      const params = {
+        format: imageFormat,
+        captureBeyondViewport: true,
+        fromSurface: true,
+        clip: { x: 0, y: 0, width: pageWidth, height: pageHeight, scale: 1 }
+      };
+      if (imageFormat === "jpeg") params.quality = advanced.jpegQuality;
+
+      const { data } = await send(target, "Page.captureScreenshot", params);
+      result.image = base64ToBytes(data);
+      log("screenshot", { format: imageFormat, bytes: result.image.length });
+    } else {
+      result.date = new Date();
     }
-    log("page.layout", { width: pageWidth, height: pageHeight, truncatedFrom: result.fullHeight || null });
-    await evaluate(target, world, "window.scrollTo(0, 0)", 5000);
-    await sleep(200);
-
-    // Il PDF incorpora lo screenshot come JPEG.
-    const imageFormat = settings.format === "png" ? "png" : "jpeg";
-    const params = {
-      format: imageFormat,
-      captureBeyondViewport: true,
-      fromSurface: true,
-      clip: { x: 0, y: 0, width: pageWidth, height: pageHeight, scale: 1 }
-    };
-    if (imageFormat === "jpeg") params.quality = advanced.jpegQuality;
-
-    result.date = new Date();
-    const { data } = await send(target, "Page.captureScreenshot", params);
-    result.image = base64ToBytes(data);
-    result.width = pageWidth;
     result.height = pageHeight;
-    log("screenshot", { format: imageFormat, bytes: result.image.length });
 
-    // Indirizzo e titolo effettivi al momento dello screenshot: la pagina
-    // potrebbe aver cambiato URL durante la cattura.
+    // Indirizzo e titolo effettivi al momento dell'acquisizione.
     const history = await send(target, "Page.getNavigationHistory");
     const entry = history.entries[history.currentIndex] || {};
     result.url = entry.url || tab.url || "";
@@ -461,9 +466,9 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
     }
   } finally {
     networkLifecycle.stop?.();
-    try {
-      await send(target, "Emulation.clearDeviceMetricsOverride");
-    } catch (_) {}
+    if (features.screenshot) {
+      try { await send(target, "Emulation.clearDeviceMetricsOverride"); } catch (_) {}
+    }
     try {
       await chrome.debugger.detach(target);
     } catch (_) {}
@@ -954,9 +959,9 @@ function buildReportJson(acq) {
 
 // Avvio del download != completamento. Ascolta prima di avviarlo e controlla
 // anche lo stato corrente, così non si perdono download completati subito.
-function download(bytes, mime, filename, subfolder, timeoutMs = 120000) {
+function download(bytes, mime, filename, subfolder, timeoutMs = 120000, saveAs = false) {
   return new Promise((resolve, reject) => {
-    let id;
+    let id, timer;
     let settled = false;
     const finish = (error) => {
       if (settled) return;
@@ -970,14 +975,15 @@ function download(bytes, mime, filename, subfolder, timeoutMs = 120000) {
     const inspect = (item) => {
       if (item.state === "complete") {
         const actual = item.filename?.split(/[\\/]/).pop();
-        if (actual && actual !== filename) finish(i18nError("err.download", { file: filename, error: "renamed" }));
+        if (!saveAs && actual && actual !== filename) finish(i18nError("err.download", { file: filename, error: "renamed" }));
         else finish();
       }
       else if (item.state === "interrupted") finish(i18nError("err.download", { file: filename, error: item.error || "interrupted" }));
+      else if (saveAs && item.filename && timer === undefined && !settled) timer = setTimeout(onTimeout, timeoutMs);
     };
     const changed = (delta) => {
       if (delta.id !== id) return;
-      if (delta.state?.current === "complete") void check();
+      if (delta.filename?.current || delta.state?.current === "complete") void check();
       else inspect({ state: delta.state?.current, error: delta.error?.current });
     };
     const erased = (erasedId) => {
@@ -991,15 +997,20 @@ function download(bytes, mime, filename, subfolder, timeoutMs = 120000) {
         else inspect(item);
       } catch (err) { finish(err); }
     };
-    const timer = setTimeout(() => finish(i18nError("err.download", { file: filename, error: "timeout" })), timeoutMs);
-    // Le chiamate API periodiche mantengono attivo il service worker MV3.
-    const poll = setInterval(check, 5000);
+    const onTimeout = () => finish(i18nError("err.download", { file: filename, error: "timeout" }));
+    // Con Salva con nome il tempo decorre da quando Chrome ha una destinazione.
+    if (!saveAs) timer = setTimeout(onTimeout, timeoutMs);
+    // Mantiene attivo il service worker MV3 anche prima che Chrome assegni un ID.
+    const poll = setInterval(() => {
+      if (id === undefined) void chrome.runtime.getPlatformInfo().catch(() => {});
+      else void check();
+    }, 5000);
     chrome.downloads.onChanged.addListener(changed);
     chrome.downloads.onErased.addListener(erased);
     Promise.resolve().then(() => chrome.downloads.download({
       url: `data:${mime};base64,${bytesToBase64(bytes)}`,
       filename: subfolder ? `${subfolder}/${filename}` : filename,
-      saveAs: false,
+      saveAs,
       conflictAction: "uniquify"
     })).then((downloadId) => {
       id = downloadId;
@@ -1017,7 +1028,11 @@ async function run(tab, options = {}) {
   const settings = await getSettings();
   setLanguage(settings.language);
   const { features } = settings;
-  const format = settings.format;
+  const format = features.screenshot ? settings.format : null;
+  if (![features.screenshot, features.mhtml, features.html, features.text, features.network,
+    features.netContext, features.storage, features.textReport, features.jsonReport, features.htmlReport].some(Boolean)) {
+    throw i18nError("err.noOutput");
+  }
 
   // Catena di custodia: chi acquisisce, per quale caso e perché.
   const custody = cleanCustody(settings.custody);
@@ -1030,7 +1045,8 @@ async function run(tab, options = {}) {
   const log = [];
   const step = (name, detail) => log.push({ at: new Date().toISOString(), step: name, ...(detail ? { detail } : {}) });
   step("acquisition.start", { operator: custody.operator || null, caseRef: custody.caseRef || null });
-  const environment = await collectEnvironment(settings);
+  const hasReport = features.textReport || features.jsonReport || features.htmlReport;
+  const environment = hasReport || (format === "pdf" && features.cover) ? await collectEnvironment(settings) : {};
   step("environment", { code: environment.code?.sha256 || null,
     extensions: environment.extensions ? environment.extensions.length : null,
     canAlterPages: environment.extensions ? environment.extensions.filter((x) => x.canAlterPages).length : null });
@@ -1061,7 +1077,7 @@ async function run(tab, options = {}) {
     width: shot.width,
     height: shot.height,
     fullHeight: shot.fullHeight || null,
-    emulatedWidth: Number(settings.width) || 0,
+    emulatedWidth: format ? Number(settings.width) || 0 : 0,
     format,
     features,
     userAgent: (await browserName()) + " — " + navigator.userAgent,
@@ -1176,15 +1192,16 @@ async function run(tab, options = {}) {
       });
       printEntry = await fileEntry(`${base}.print.pdf`, "print", t("role.printPdf"), printPdf.bytes, "application/pdf");
     }
-  } else {
+  } else if (format) {
     const ext = format === "jpeg" ? "jpg" : "png";
     main = await fileEntry(`${base}.${ext}`, "screenshot", t("role.image", { format: format.toUpperCase() }), shot.image, `image/${format}`);
   }
   if (printEntry) related.push(printEntry);
-  acq.files.push(main, ...related);
+  if (main) acq.files.push(main);
+  acq.files.push(...related);
   for (const f of acq.files) step("evidence.hash", { file: f.name, sha256: f.sha256 });
 
-  const outputs = [main, ...related];
+  const outputs = [...acq.files];
   const warnings = [];
   const notes = [];
 
@@ -1223,8 +1240,10 @@ async function run(tab, options = {}) {
   const enc = new TextEncoder();
   // Ultimo passo registrabile nei report: quelli successivi (manifest, TSA)
   // finiscono nella ricevuta della marca temporale.
-  step("report.build");
-  outputs.push({ name: `${base}.report.txt`, bytes: enc.encode(buildReportText(acq)), mime: "text/plain;charset=utf-8" });
+  if (hasReport) step("report.build");
+  if (features.textReport) {
+    outputs.push({ name: `${base}.report.txt`, bytes: enc.encode(buildReportText(acq)), mime: "text/plain;charset=utf-8" });
+  }
   if (features.jsonReport) {
     outputs.push({ name: `${base}.report.json`, bytes: enc.encode(buildReportJson(acq)), mime: "application/json" });
   }
@@ -1237,11 +1256,17 @@ async function run(tab, options = {}) {
   // che ancora non esistono. La TSA marca questo file, non solo lo screenshot.
   const checksums = async (files) => (await Promise.all(files.map(async (f) =>
     `${await sha256Hex(f.bytes)}  ${f.name}`))).join("\n") + "\n";
-  const evidenceManifest = {
-    name: `${base}.manifest.sha256`,
-    bytes: enc.encode(await checksums(outputs)), mime: "text/plain;charset=utf-8"
-  };
-  outputs.push(evidenceManifest);
+  if (!outputs.length) throw i18nError("err.noOutput");
+  const primary = outputs[0];
+  const primaryHash = primary.sha256 || await sha256Hex(primary.bytes);
+  let evidenceManifest;
+  if (features.checksums || features.timestamp || features.pec) {
+    evidenceManifest = {
+      name: `${base}.manifest.sha256`,
+      bytes: enc.encode(await checksums(outputs)), mime: "text/plain;charset=utf-8"
+    };
+    outputs.push(evidenceManifest);
+  }
 
   const receiptLog = [];
   const late = (name, detail) => receiptLog.push({ at: new Date().toISOString(), step: name, ...(detail ? { detail } : {}) });
@@ -1268,66 +1293,51 @@ async function run(tab, options = {}) {
     outputs.push({ name: `${base}.timestamp.json`, bytes: enc.encode(JSON.stringify(receipt, null, 2)), mime: "application/json" });
   }
 
-  // Bozza PEC: manifest e report allegati, impronta del manifest nel testo.
-  // Si salva a parte (non è un reperto: allega copie di file già nel manifest).
-  let pecDraft = null;
+  // La bozza PEC fa parte dell'esportazione, fuori dal manifest probatorio.
   if (features.pec) {
     const report = outputs.find((f) => f.name === `${base}.report.txt`);
     const manifestHash = await sha256Hex(evidenceManifest.bytes);
     let host = "";
     try { host = new URL(acq.url).hostname; } catch (_) {}
-    pecDraft = {
-      name: `${base}.pec.eml`,
+    const pecDraft = {
+      name: `${base}.pec.eml`, mime: "message/rfc822",
       bytes: buildEml({
         to: settings.advanced.pecRecipient,
         subject: t("pec.subject", { host: host || acq.url, date: acq.date.toISOString() }),
         body: t("pec.body", {
           url: acq.url, date: acq.date.toISOString(), id: base,
           caseRef: custody.caseRef || t("custody.notGiven"), operator: custody.operator || t("custody.notGiven"),
-          manifest: evidenceManifest.name, manifestHash, main: main.name, mainHash: main.sha256,
+          manifest: evidenceManifest.name, manifestHash, main: primary.name, mainHash: primaryHash,
           tsa: t(acq.timestamp && acq.timestamp.status !== "failed" ? "pec.body.tsa" : "pec.body.noTsa")
         }),
         attachments: [evidenceManifest, report].filter(Boolean)
       })
     };
+    outputs.push(pecDraft);
+    notes.push(msg("note.pec", { file: pecDraft.name }));
   }
 
-  // Il riepilogo finale include anche manifest, token e ricevuta. Esclude solo
-  // se stesso. Il manifest marcato protegge il contenuto probatorio e i report.
-  outputs.push({ name: `${base}.SHA256SUMS.txt`, bytes: enc.encode(await checksums(outputs)), mime: "text/plain;charset=utf-8" });
+  if (features.checksums) {
+    outputs.push({ name: "SHA256SUMS.txt", bytes: enc.encode(await checksums(outputs)), mime: "text/plain;charset=utf-8" });
+  }
+
+  // Una sola richiesta di destinazione, anche con la conferma dei download attiva in Chrome.
   const subfolder = cleanSubfolder(settings.advanced.subfolder);
+  const useZip = features.zip || outputs.length > 1;
   let zipHash = null;
-  if (features.zip) {
-    // Nome convenzionale dentro lo ZIP; all'esterno usa l'ID acquisizione.
-    outputs[outputs.length - 1].name = "SHA256SUMS.txt";
+  if (useZip) {
     const zip = makeZip(outputs, shot.date);
     zipHash = await sha256Hex(zip);
-    await download(zip, "application/zip", `${base}.zip`, subfolder);
-    // L'impronta dello ZIP non può stare nello ZIP: la si salva accanto, in
-    // formato sha256sum -c, così non resta solo nel popup. Lo ZIP è già
-    // salvato: se questo file non riesce basta un avviso, l'impronta è nel popup.
-    try {
-      await download(enc.encode(`${zipHash}  ${base}.zip\n`), "text/plain;charset=utf-8", `${base}.zip.sha256`, subfolder);
-    } catch (err) {
-      warnings.push(msg("warn.zipChecksum", { error: err.message }));
-    }
+    await download(zip, "application/zip", `${base}.zip`, subfolder, undefined, true);
   } else {
-    for (const f of outputs) await download(f.bytes, f.mime, f.name, subfolder);
-  }
-  if (pecDraft) {
-    try {
-      await download(pecDraft.bytes, "message/rfc822", pecDraft.name, subfolder);
-      notes.push(msg("note.pec", { file: pecDraft.name }));
-    } catch (err) {
-      warnings.push(msg("warn.pec", { error: err.message }));
-    }
+    await download(primary.bytes, primary.mime, primary.name, subfolder, undefined, true);
   }
 
   return {
     width: shot.width,
     height: shot.height,
-    filename: main.name,
-    hash: main.sha256,
+    filename: primary.name,
+    hash: primaryHash,
     zipHash,
     genTime: acq.timestamp?.genTime || null,
     timestampVerification: acq.timestamp?.verification || null,

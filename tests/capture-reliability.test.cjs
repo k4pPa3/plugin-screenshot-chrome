@@ -94,3 +94,29 @@ test('localized capture errors reach popup, persist state, and release busy flag
     assert.equal(states.at(-1).capture.errorMsg.key, 'err.internalPage');
   }
 });
+
+test('MHTML alone downloads only the snapshot and skips screenshot work', async () => {
+  const { c, calls, detached } = await harness();
+  const features = c.eval('Object.fromEntries(Object.keys(DEFAULT_SETTINGS.features).map(key => [key, false]))');
+  c.chrome.storage.local.get = async () => ({ settings: { format: 'pdf', features: { ...features, mhtml: true } } });
+  const send = c.send;
+  c.send = (...args) => args[1] === 'Page.captureSnapshot' ? { data: 'snapshot' } : send(...args);
+  c.collectEnvironment = () => assert.fail('No reports requested');
+  const downloads = [];
+  c.chrome.downloads.download = async options => { downloads.push(options); return 1; };
+  c.chrome.downloads.search = async () => [{ state: 'complete', filename: '/chosen/renamed.mhtml' }];
+
+  const result = await c.run({ id: 1, url: 'http://example.test/final' });
+  assert.equal(downloads.length, 1);
+  assert.match(downloads[0].filename, /\.mhtml$/);
+  assert.equal(downloads[0].saveAs, true);
+  assert.equal(downloads[0].url, 'data:multipart/related;base64,c25hcHNob3Q=');
+  assert.equal(result.hash, await c.sha256Hex(new TextEncoder().encode('snapshot')));
+  assert.equal(result.zipHash, null);
+  assert.ok(!calls.some(({ method }) => /captureScreenshot|^Emulation\.|^Runtime\./.test(method)));
+  assert.equal(detached(), true);
+
+  c.chrome.storage.local.get = async () => ({ settings: { features } });
+  await assert.rejects(c.run({ id: 1, url: 'http://example.test/final' }), { code: 'err.noOutput' });
+  assert.equal(downloads.length, 1);
+});
