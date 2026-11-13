@@ -72,6 +72,16 @@ La memoria chrome.storage.session viene cancellata al riavvio del browser e quan
 l'estensione viene disabilitata, ricaricata o aggiornata. Chiudere soltanto il popup
 non cancella la sessione.
 
+## Verifica degli aggiornamenti (facoltativa)
+
+Per le installazioni da cartella, **Verifica aggiornamenti** interroga l’API pubblica di GitHub
+(`api.github.com`) dopo la concessione del permesso per quell’host. Il controllo avviene
+su richiesta e il confronto delle versioni avviene sul dispositivo. La richiesta non contiene
+cookie, credenziali, dati delle acquisizioni o la versione installata. GitHub può osservare
+l’indirizzo IP e i metadati della connessione. **Scarica ZIP** avvia il download del pacchetto
+da GitHub e dal suo host per gli allegati (`release-assets.githubusercontent.com`),
+senza credenziali. L’estensione verifica dimensione e SHA-256 prima di salvare lo ZIP.
+
 ## Connessioni esterne e marca temporale facoltativa
 
 Con la marca temporale attiva, l'estensione contatta il servizio **TSA selezionato

@@ -132,6 +132,17 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     });
     assert.equal(await popup.locator('#format').isDisabled(), true);
     assert.equal(await popup.locator('[data-feature="printPdf"]').isDisabled(), true);
+    await popup.evaluate(() => pendingSettings);
+    // The worker and popup run in separate renderer contexts. Wait for the
+    // settings to become visible to the same context that performs the export.
+    await worker.evaluate(async () => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const { features } = await getSettings();
+        if (Object.keys(features).filter(key => features[key]).join() === 'mhtml') return;
+        await sleep(50);
+      }
+      throw new Error('The capture worker did not receive the MHTML-only settings');
+    });
     await popup.close();
     await page.bringToFront();
 
@@ -204,6 +215,51 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     await options.setViewportSize({ width: 375, height: 800 });
     assert.ok(await card.evaluate(el => el.getBoundingClientRect().right <= window.innerWidth));
     assert.deepEqual(externalRequests, []);
+    // The updater is dormant until requested, and downloads the extension ZIP.
+    const checkUpdates = options.locator('#checkUpdates');
+    await checkUpdates.waitFor();
+    assert.equal(await options.locator('#installedVersion').textContent(),
+      await worker.evaluate(() => chrome.runtime.getManifest().version));
+    assert.deepEqual(externalRequests, []);
+    const updateUrl = 'https://github.com/k4pPa3/plugin-screenshot-chrome/releases/download/v99.0.0/forensic-web-capture-99.0.0.zip';
+    await options.evaluate(async updateUrl => {
+      const calls = window.updateCalls = [];
+      chrome.permissions.request = async details => { calls.push(details); return true; };
+      const bytes = new Uint8Array([80, 75, 3, 4]);
+      const digest = await sha256Hex(bytes);
+      const fetchOriginal = window.fetch;
+      window.fetch = async (url, init) => {
+        if (url === updateUrl) {
+          calls.push(String(url));
+          const response = new Response(bytes);
+          Object.defineProperty(response, 'url', { value: updateUrl });
+          return response;
+        }
+        if (!String(url).startsWith('https://api.github.com/')) return fetchOriginal.call(window, url, init);
+        calls.push(String(url));
+        return Response.json({
+          tag_name: 'v99.0.0', draft: false, prerelease: false,
+          assets: [{ name: 'forensic-web-capture-99.0.0.zip', state: 'uploaded', browser_download_url: updateUrl, size: bytes.length, digest: `sha256:${digest}` }]
+        });
+      };
+      chrome.downloads.download = async details => {
+        const bytes = new Uint8Array(await (await window.fetch(details.url)).arrayBuffer());
+        calls.push({ ...details, url: Array.from(bytes) });
+        return 1;
+      };
+    }, updateUrl);
+    await checkUpdates.click();
+    await options.locator('#updateStatus').filter({ hasText: '99.0.0' }).waitFor();
+    await options.locator('#downloadUpdate').click();
+    await options.waitForFunction(() => window.updateCalls.length === 5);
+    assert.deepEqual(await options.evaluate(() => window.updateCalls), [
+      { origins: ['https://api.github.com/*'] },
+      'https://api.github.com/repos/k4pPa3/plugin-screenshot-chrome/releases/latest',
+      { origins: ['https://github.com/*', 'https://release-assets.githubusercontent.com/*'] },
+      updateUrl,
+      { url: [80, 75, 3, 4], filename: 'forensic-web-capture-99.0.0.zip', saveAs: true, conflictAction: 'uniquify' }
+    ]);
+
     t.diagnostic('Options: public username, no referral, clipboard success/denial, translations and mobile layout verified');
 
   } finally {

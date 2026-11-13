@@ -23,6 +23,9 @@ function syncHarSwitch() {
   const har = document.querySelector('[data-feature="har"]');
   har.disabled = !document.querySelector('[data-feature="network"]').checked;
   har.closest(".switch").classList.toggle("disabled", har.disabled);
+  const shareable = document.querySelector('[data-feature="shareableHar"]');
+  shareable.disabled = har.disabled || !har.checked;
+  shareable.closest(".switch").classList.toggle("disabled", shareable.disabled);
 }
 
 // Copertina e copia per la stampa esistono solo nel formato PDF.
@@ -136,7 +139,10 @@ function render(state) {
     setStatus(t("popup.saved", { width: state.width, height: state.height }));
     addHash(t("popup.hashOf", { file: state.filename }), state.hash);
     if (state.zipHash) addHash(t("popup.zipHash"), state.zipHash);
-    if (state.genTime) addHash(t("popup.tsaTime"), state.genTime);
+    if (state.genTime) {
+      const label = state.timestampVerification === "verified" ? "popup.tsaTime" : "popup.tsaTimeUnverified";
+      addHash(t(label), state.genTime);
+    }
     for (const [cls, list] of [["note", state.notes], ["warn", state.warnings]]) {
       for (const text of list || []) {
         const el = document.createElement("div");

@@ -22,8 +22,10 @@ fornisce e il servizio di marca temporale. In particolare:
 - **Mondo isolato**: il codice che scorre la pagina e ne legge l'HTML gira in un contesto
   JavaScript separato, che la pagina non può alterare (es. ridefinendo `outerHTML` o
   `setTimeout`). Ogni valutazione ha un tempo massimo.
-- **Pagina che cambia indirizzo**: URL e titolo nel report sono quelli effettivi al momento
-  dello screenshot; se differiscono da quelli iniziali viene segnalato.
+- **Navigazione durante la cattura**: dopo l’eventuale ricarica iniziale, un cambio del
+  documento principale o una navigazione nella pagina rilevata dal debugger interrompe
+  l’acquisizione. I formati vengono prodotti in sequenza e il DOM può cambiare anche
+  senza navigazione.
 - **Dimensioni**: limite di 40 milioni di pixel per lo screenshot e 96 MiB per l’export.
   HTML e MHTML oltre 24 MiB vengono omessi con un avviso se restano altri file. Chrome
   restituisce l’MHTML in un’unica risposta CDP: il limite si applica dopo la ricezione.

@@ -115,3 +115,25 @@ test('custom CA from options makes a private TSA verified; a missing CA leaves i
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+
+test('pathLen=0 rejects a chain with a subordinate intermediate CA', async () => {
+  const c = await context();
+  c.eval(`
+    globalThis.verifyWith = async () => true;
+    globalThis.chainFixture = (() => {
+      const name = id => new Uint8Array([id]);
+      const cert = (id, issuer, props = {}) => ({
+        subject: String(id), subjectRaw: name(id), issuerRaw: name(issuer), spkiRaw: name(id),
+        unknownCritical: [], notBefore: 0, notAfter: 2, ...props
+      });
+      const root = cert(3, 3, { isCA: true, pathLen: 0 });
+      const signer = cert(1, 2);
+      const intermediate = cert(2, 3, { isCA: true, pathLen: 0 });
+      const directSigner = cert(4, 3);
+      return { signer, intermediate, directSigner, anchors: [{ name: 'root', cert: root }] };
+    })();
+  `);
+  const { signer, intermediate, directSigner, anchors } = c.chainFixture;
+  await assert.rejects(c.eval('buildChain')(signer, [intermediate], anchors, 1), { outcome: "untrusted" });
+  assert.equal((await c.eval('buildChain')(directSigner, [], anchors, 1)).anchor, 'root');
+});

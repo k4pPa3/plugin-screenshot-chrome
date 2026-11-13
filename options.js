@@ -24,6 +24,7 @@ function translatePage() {
   applyI18n();
   document.title = t("options.title");
   $("supportStatus").textContent = "";
+  renderUpdates();
   const selected = presetEl.value;
   presetEl.replaceChildren(...Object.keys(TSA_PRESETS).map((key) => new Option(t(`preset.${key}`), key)));
   if (selected) presetEl.value = selected;
@@ -356,6 +357,84 @@ $("copySupportUsername").addEventListener("click", () =>
   copySupportIdentifier("supportUsername", "options.support.usernameCopied"));
 
 const manifest = chrome.runtime.getManifest();
+let availableUpdate;
+let updateStatus;
+let checkingUpdate = false;
+let startingUpdateDownload = false;
+
+function renderUpdates() {
+  $("checkUpdates").disabled = checkingUpdate || startingUpdateDownload;
+  $("downloadUpdate").disabled = startingUpdateDownload;
+  $("downloadUpdate").hidden = !availableUpdate?.downloadUrl;
+  $("updateInstructions").hidden = !availableUpdate?.downloadUrl;
+  const releaseLink = $("updateRelease");
+  releaseLink.hidden = !availableUpdate;
+  if (availableUpdate) releaseLink.href = availableUpdate.releaseUrl;
+  else releaseLink.removeAttribute("href");
+
+  const status = $("updateStatus");
+  status.hidden = !updateStatus;
+  if (updateStatus) show(status, tm(updateStatus));
+}
+
+$("checkUpdates").addEventListener("click", async () => {
+  availableUpdate = null;
+  checkingUpdate = true;
+  updateStatus = msg("updates.checking");
+  renderUpdates();
+  try {
+    const granted = await chrome.permissions.request({ origins: [UPDATE_ORIGIN] });
+    if (!granted) {
+      updateStatus = msg("updates.denied");
+      return;
+    }
+    availableUpdate = await findGitHubUpdate(manifest.version);
+    updateStatus = availableUpdate
+      ? msg(availableUpdate.downloadUrl ? "updates.available" : "updates.missingZip", { version: availableUpdate.version })
+      : msg("updates.current");
+  } catch (_) {
+    updateStatus = msg("updates.error");
+  } finally {
+    checkingUpdate = false;
+    renderUpdates();
+  }
+});
+
+$("downloadUpdate").addEventListener("click", async () => {
+  if (!availableUpdate?.downloadUrl || startingUpdateDownload) return;
+  const update = availableUpdate;
+  startingUpdateDownload = true;
+  updateStatus = msg("updates.verifying");
+  renderUpdates();
+  try {
+    const granted = await chrome.permissions.request({ origins: UPDATE_ASSET_ORIGINS });
+    if (!granted) {
+      updateStatus = msg("updates.downloadDenied");
+      return;
+    }
+    const bytes = await fetchVerifiedUpdate(update);
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
+    try {
+      await chrome.downloads.download({ url, filename: update.filename, saveAs: true, conflictAction: "uniquify" });
+      updateStatus = msg("updates.started");
+    } finally {
+      // Consenti al browser di aprire il Blob anche dopo la finestra Salva con nome.
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (error) {
+    updateStatus = msg(error.code === "updates.integrityError" || error.code === "tsa.tooLarge"
+      ? "updates.integrityError" : "updates.downloadError");
+  } finally {
+    startingUpdateDownload = false;
+    renderUpdates();
+  }
+});
+
+$("installedVersion").textContent = manifest.version;
+chrome.management.getSelf().then(({ installType }) => {
+  $("githubUpdates").hidden = installType !== "development";
+  $("managedUpdates").hidden = installType === "development";
+}).catch(() => { $("managedUpdates").hidden = false; });
 $("version").textContent = `${manifest.name} ${manifest.version}`;
 
 (async () => {

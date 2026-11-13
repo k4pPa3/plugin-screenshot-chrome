@@ -315,6 +315,14 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
 
   const result = { network: null, networkError: null };
   const networkLifecycle = {};
+  let documentChanges = 0;
+  let mainFrame;
+  const watchNavigation = (source, method, params) => {
+    if (source.tabId !== target.tabId) return;
+    if (method === "Page.frameNavigated" && !params.frame?.parentId
+      || method === "Page.navigatedWithinDocument" && params.frameId === mainFrame) documentChanges++;
+  };
+  chrome.debugger.onEvent.addListener(watchNavigation);
   try {
     await send(target, "Page.enable");
 
@@ -338,6 +346,18 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
         tls.userOverride = override;
       }
     }
+    const readDocument = async () => (await send(target, "Page.getFrameTree")).frameTree.frame;
+    const baselineChanges = documentChanges;
+    const document = await readDocument();
+    mainFrame = document.id;
+    const assertSameDocument = async () => {
+      const current = await readDocument();
+      if (documentChanges !== baselineChanges || current.id !== document.id
+        || current.loaderId !== document.loaderId || current.url !== document.url) {
+        throw i18nError("err.documentChanged");
+      }
+    };
+    await assertSameDocument();
     // Dopo l'eventuale ricarica: il mondo isolato è legato al documento.
     const world = features.autoScroll || features.screenshot || features.html || features.text || features.storage
       ? await createIsolatedWorld(target) : null;
@@ -402,7 +422,9 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       };
       if (imageFormat === "jpeg") params.quality = advanced.jpegQuality;
 
+      await assertSameDocument();
       const { data } = await send(target, "Page.captureScreenshot", params);
+      await assertSameDocument();
       if (data.length > 4 * Math.ceil(MAX_CAPTURE_IMAGE_BYTES / 3)) throw i18nError("err.exportTooLarge");
       result.image = base64ToBytes(data);
       log("screenshot", { format: imageFormat, bytes: result.image.length });
@@ -426,7 +448,9 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
     }
 
     if (features.mhtml) {
+      await assertSameDocument();
       const { data: mhtml } = await send(target, "Page.captureSnapshot", { format: "mhtml" });
+      await assertSameDocument();
       if (mhtml.length <= MAX_CAPTURE_DOCUMENT_BYTES) {
         result.mhtml = new TextEncoder().encode(mhtml);
         if (result.mhtml.length > MAX_CAPTURE_DOCUMENT_BYTES) delete result.mhtml;
@@ -502,7 +526,9 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       log("network.har", { ...result.network.harCollection,
         hashed: result.harEntries.filter((e) => e.sha256).length });
     }
+    await assertSameDocument();
   } finally {
+    chrome.debugger.onEvent.removeListener(watchNavigation);
     networkLifecycle.stop?.();
     if (features.screenshot) {
       try { await send(target, "Emulation.clearDeviceMetricsOverride"); } catch (_) {}
@@ -1178,6 +1204,10 @@ async function run(tab, options = {}) {
       pageTitle: acq.title, collection: shot.network?.harCollection,
       startedAt: shot.network?.harCollection?.startedAt || shot.date.toISOString(), redacted: t("value.redacted") });
     related.push(await fileEntry(`${base}.har`, "har", t("role.har"), new TextEncoder().encode(JSON.stringify(har)), "application/json"));
+    if (features.shareableHar) {
+      related.push(await fileEntry(`${base}.share.har`, "har-share", t("role.shareableHar"),
+        new TextEncoder().encode(JSON.stringify(buildShareableHar(har))), "application/json"));
+    }
   }
   if (shot.text) {
     related.push(await fileEntry(`${base}.text.txt`, "text", t("role.text"),

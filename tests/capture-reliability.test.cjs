@@ -121,6 +121,22 @@ test('MHTML alone downloads only the snapshot and skips screenshot work', async 
   assert.equal(downloads.length, 1);
 });
 
+test('a main-frame navigation during MHTML capture aborts the export and detaches', async () => {
+  const { c, events, settings, detached } = await harness();
+  settings.features = { ...settings.features, network: false, autoScroll: false, mhtml: true };
+  const send = c.send;
+  c.send = (...args) => {
+    if (args[1] === 'Page.captureSnapshot') {
+      events.emit({ tabId: 1 }, 'Page.frameNavigated', { frame: { id: 'main' } });
+      return { data: 'different document' };
+    }
+    return send(...args);
+  };
+  await assert.rejects(c.capture({ id: 1 }, settings), { code: 'err.documentChanged' });
+  assert.equal(events.listeners.size, 0);
+  assert.equal(detached(), true);
+});
+
 test('oversized MHTML is omitted and export budget is checked before ZIP allocation', async () => {
   const { c, settings } = await harness();
   settings.features = { ...settings.features, network: false, autoScroll: false, mhtml: true };
