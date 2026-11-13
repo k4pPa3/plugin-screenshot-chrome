@@ -136,3 +136,29 @@ test('a main-frame navigation during MHTML capture aborts the export and detache
   assert.equal(events.listeners.size, 0);
   assert.equal(detached(), true);
 });
+
+test('oversized MHTML is omitted and export budget is checked before ZIP allocation', async () => {
+  const { c, settings } = await harness();
+  settings.features = { ...settings.features, network: false, autoScroll: false, mhtml: true };
+  const send = c.send;
+  c.send = (...args) => args[1] === 'Page.captureSnapshot'
+    ? { data: 'x'.repeat(24 * 1024 * 1024 + 1) } : send(...args);
+  const shot = await c.capture({ id: 1 }, settings);
+  assert.equal(shot.mhtml, undefined);
+  assert.equal(shot.largeMhtml, true);
+  assert.ok(shot.image);
+  assert.throws(() => c.eval('assertExportSize')([{ name: 'oversized', bytes: { length: 96 * 1024 * 1024 } }]),
+    { code: 'err.exportTooLarge' });
+});
+
+test('repeated links count once toward the extracted link budget', async () => {
+  const { c, settings } = await harness();
+  settings.features = { ...settings.features, screenshot: false, network: false, autoScroll: false, text: true };
+  const url = 'https://example.test/' + 'x'.repeat(2100);
+  c.document = { documentElement: {}, body: { innerText: 'Visible' }, links: Array.from({ length: 1000 }, () => ({ href: url })) };
+  c.evaluate = async (_, __, expression) => c.eval(expression);
+  const shot = await c.capture({ id: 1 }, settings);
+  assert.equal(shot.text.text, 'Visible');
+  assert.deepEqual(Array.from(shot.text.links), [url]);
+  assert.equal(shot.text.totalLinks, 1);
+});

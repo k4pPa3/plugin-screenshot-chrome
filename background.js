@@ -186,6 +186,7 @@ async function collectNetworkInfo(target, settings, lifecycle = null) {
     for (const e of entries) {
       if (e.redirect) { e.bodyOmitted = "redirect"; continue; }
       if (!e.finished || e.failed) { e.bodyOmitted = e.failed ? "failed" : "pending"; continue; }
+      if (e.encodedDataLength > HAR_MAX_BODY_EACH) { e.bodyOmitted = "size"; continue; }
       try {
         const body = await send(target, "Network.getResponseBody", { requestId: e.requestId });
         const bytes = harBodyBytes(body);
@@ -293,6 +294,18 @@ async function autoScroll(target, world, settings) {
   })()`, limit + 5000);
 }
 
+// Limiti sui dati restituiti da CDP e sulle copie create durante l'export.
+const MAX_CAPTURE_PIXELS = 40_000_000;
+const MAX_CAPTURE_IMAGE_BYTES = 24 * 1024 * 1024;
+const MAX_CAPTURE_DOCUMENT_BYTES = 24 * 1024 * 1024;
+const MAX_EXPORT_BYTES = 96 * 1024 * 1024;
+
+function assertExportSize(files) {
+  // Include un margine per le intestazioni ZIP e i nomi dei file.
+  const size = files.reduce((total, file) => total + file.bytes.length + 76 + 2 * file.name.length, 22);
+  if (size > MAX_EXPORT_BYTES) throw i18nError("err.exportTooLarge");
+}
+
 async function capture(tab, settings, { override = false, log = () => {} } = {}) {
   const { features, advanced } = settings;
   const width = Number(settings.width) || 0;
@@ -370,7 +383,9 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
         });
       // Limite all'altezza: una pagina che cresce all'infinito esaurirebbe la
       // memoria dell'estensione.
-      const maxHeight = Number(advanced.maxHeight) || DEFAULT_SETTINGS.advanced.maxHeight;
+      const configuredHeight = Number(advanced.maxHeight) || DEFAULT_SETTINGS.advanced.maxHeight;
+      const maxHeight = Math.min(configuredHeight, Math.floor(MAX_CAPTURE_PIXELS / pageWidth));
+      if (maxHeight < 1) throw i18nError("err.exportTooLarge");
       const contentHeight = async () => {
         const m = await send(target, "Page.getLayoutMetrics");
         const h = Math.ceil((m.cssContentSize || m.contentSize).height);
@@ -410,6 +425,7 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       await assertSameDocument();
       const { data } = await send(target, "Page.captureScreenshot", params);
       await assertSameDocument();
+      if (data.length > 4 * Math.ceil(MAX_CAPTURE_IMAGE_BYTES / 3)) throw i18nError("err.exportTooLarge");
       result.image = base64ToBytes(data);
       log("screenshot", { format: imageFormat, bytes: result.image.length });
     } else {
@@ -435,31 +451,53 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
       await assertSameDocument();
       const { data: mhtml } = await send(target, "Page.captureSnapshot", { format: "mhtml" });
       await assertSameDocument();
-      result.mhtml = new TextEncoder().encode(mhtml);
-      log("snapshot.mhtml", { bytes: result.mhtml.length });
+      if (mhtml.length <= MAX_CAPTURE_DOCUMENT_BYTES) {
+        result.mhtml = new TextEncoder().encode(mhtml);
+        if (result.mhtml.length > MAX_CAPTURE_DOCUMENT_BYTES) delete result.mhtml;
+      }
+      if (result.mhtml) log("snapshot.mhtml", { bytes: result.mhtml.length });
+      else result.largeMhtml = true;
     }
     if (features.html) {
       const html = await evaluate(target, world,
-        `(document.doctype ? new XMLSerializer().serializeToString(document.doctype) + "\\n" : "") + document.documentElement.outerHTML`,
+        `(() => {
+          const source = (document.doctype ? new XMLSerializer().serializeToString(document.doctype) + "\\n" : "") + document.documentElement.outerHTML;
+          return source.length <= ${MAX_CAPTURE_DOCUMENT_BYTES} ? source : null;
+        })()`,
         30000);
-      result.html = new TextEncoder().encode(protectHtml(String(html)));
-      log("snapshot.html", { bytes: result.html.length });
+      if (html !== null) {
+        result.html = new TextEncoder().encode(protectHtml(String(html)));
+        if (result.html.length > MAX_CAPTURE_DOCUMENT_BYTES) delete result.html;
+      }
+      if (result.html) log("snapshot.html", { bytes: result.html.length });
+      else result.largeHtml = true;
     }
     if (features.text) {
       // Il testo come lo legge chi guarda la pagina e gli indirizzi dei link
       // del documento principale: lo screenshot non è ricercabile, questo file
       // sì. È un'aggiunta: se non riesce, l'acquisizione prosegue con un avviso.
       try {
-        const page = await evaluate(target, world, `({
-          text: document.body ? document.body.innerText : "",
-          links: [...new Set([...document.links].map((a) => {
-            // Nei link SVG href non è una stringa ma un SVGAnimatedString.
-            if (typeof a.href === "string") return a.href;
-            try { return new URL(a.href.baseVal, document.baseURI).href; } catch (_) { return ""; }
-          }).filter(Boolean))]
-        })`, 30000);
+        const page = await evaluate(target, world, `(() => {
+          const text = document.body ? document.body.innerText : "";
+          if (text.length > 2000000) return null;
+          const links = new Set();
+          const limit = Math.min(document.links.length, ${MAX_LINKS});
+          let linkChars = 0;
+          for (let i = 0; i < limit; i++) {
+            const href = document.links[i].href;
+            let url;
+            try { url = typeof href === "string" ? href : new URL(href.baseVal, document.baseURI).href; }
+            catch (_) { continue; }
+            if (!url || links.has(url)) continue;
+            linkChars += url.length;
+            if (linkChars > 2000000) return null;
+            links.add(url);
+          }
+          return { text, links: [...links], omittedLinks: document.links.length - limit };
+        })()`, 30000);
+        if (page === null) throw i18nError("err.exportTooLarge");
         const links = (Array.isArray(page?.links) ? page.links : []).map(String);
-        result.text = { text: String(page?.text ?? ""), links: links.slice(0, MAX_LINKS), totalLinks: links.length };
+        result.text = { text: String(page?.text ?? ""), links: links.slice(0, MAX_LINKS), totalLinks: links.length + (Number(page?.omittedLinks) || 0) };
         log("snapshot.text", { chars: result.text.text.length, links: result.text.totalLinks });
       } catch (err) {
         result.textError = err.message;
@@ -1242,6 +1280,8 @@ async function run(tab, options = {}) {
     target: `${base}.manifest.sha256`, file: `${base}.tsr`,
     receipt: `${base}.timestamp.json`
   };
+  if (shot.largeMhtml) warnings.push(msg("warn.largeDocument", { format: "MHTML" }));
+  if (shot.largeHtml) warnings.push(msg("warn.largeDocument", { format: "HTML" }));
   if (shot.networkError) warnings.push(msg("warn.network", { error: shot.networkError }));
   if (shot.textError) warnings.push(msg("warn.text", { error: shot.textError }));
   if (acq.netContextError) warnings.push(msg("warn.netContext", { error: acq.netContextError }));
@@ -1286,7 +1326,8 @@ async function run(tab, options = {}) {
   // che ancora non esistono. La TSA marca questo file, non solo lo screenshot.
   const checksums = async (files) => (await Promise.all(files.map(async (f) =>
     `${await sha256Hex(f.bytes)}  ${f.name}`))).join("\n") + "\n";
-  if (!outputs.length) throw i18nError("err.noOutput");
+  if (!outputs.length) throw i18nError(shot.largeMhtml || shot.largeHtml ? "err.exportTooLarge" : "err.noOutput");
+  assertExportSize(outputs);
   const primary = outputs[0];
   const primaryHash = primary.sha256 || await sha256Hex(primary.bytes);
   let evidenceManifest;
@@ -1353,6 +1394,7 @@ async function run(tab, options = {}) {
 
   // Una sola richiesta di destinazione, anche con la conferma dei download attiva in Chrome.
   const subfolder = cleanSubfolder(settings.advanced.subfolder);
+  assertExportSize(outputs);
   const useZip = features.zip || outputs.length > 1;
   let zipHash = null;
   if (useZip) {
