@@ -135,5 +135,7 @@ test('pathLen=0 rejects a chain with a subordinate intermediate CA', async () =>
   `);
   const { signer, intermediate, directSigner, anchors } = c.chainFixture;
   await assert.rejects(c.eval('buildChain')(signer, [intermediate], anchors, 1), { outcome: "untrusted" });
+  const replacement = { ...anchors[0].cert, pathLen: Infinity };
+  await assert.rejects(c.eval('buildChain')(signer, [intermediate, replacement], anchors, 1), { outcome: 'untrusted' });
   assert.equal((await c.eval('buildChain')(directSigner, [], anchors, 1)).anchor, 'root');
 });
