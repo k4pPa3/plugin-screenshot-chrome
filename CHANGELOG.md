@@ -4,6 +4,25 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.8.2] - 2026-11-13
+
+### Sicurezza
+
+- Il verificatore TSA applica i limiti sulle CA intermedie e richiede un certificato
+  dedicato alla marcatura temporale. Il popup distingue l’ora verificata da quella
+  dichiarata in un token non verificato.
+- Il registro HAR può includere una copia separata per la condivisione, priva di URL
+  originali, intestazioni, query e corpi. Il reperto originale conserva i dati acquisiti.
+- Una navigazione del documento principale durante la cattura interrompe l’esportazione.
+- I limiti di dimensione riducono l’uso di memoria durante la cattura e l’esportazione.
+  L’MHTML viene limitato dopo che Chrome ha restituito la risposta CDP completa.
+
+### Aggiunto
+
+- Controllo aggiornamenti GitHub su richiesta per le installazioni da cartella. Prima
+  del salvataggio, lo ZIP viene confrontato con la dimensione e il digest SHA-256
+  pubblicati da GitHub.
+
 ## [1.8.1] - 2026-11-13
 
 ### Corretto
@@ -325,6 +344,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.8.2]: ../../releases/tag/v1.8.2
 [1.8.1]: ../../releases/tag/v1.8.1
 [1.8.0]: ../../releases/tag/v1.8.0
 [1.7.6]: ../../releases/tag/v1.7.6
