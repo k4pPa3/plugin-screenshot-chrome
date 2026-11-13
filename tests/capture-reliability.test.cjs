@@ -134,3 +134,15 @@ test('oversized MHTML is omitted and export budget is checked before ZIP allocat
   assert.throws(() => c.eval('assertExportSize')([{ name: 'oversized', bytes: { length: 96 * 1024 * 1024 } }]),
     { code: 'err.exportTooLarge' });
 });
+
+test('repeated links count once toward the extracted link budget', async () => {
+  const { c, settings } = await harness();
+  settings.features = { ...settings.features, screenshot: false, network: false, autoScroll: false, text: true };
+  const url = 'https://example.test/' + 'x'.repeat(2100);
+  c.document = { documentElement: {}, body: { innerText: 'Visible' }, links: Array.from({ length: 1000 }, () => ({ href: url })) };
+  c.evaluate = async (_, __, expression) => c.eval(expression);
+  const shot = await c.capture({ id: 1 }, settings);
+  assert.equal(shot.text.text, 'Visible');
+  assert.deepEqual(Array.from(shot.text.links), [url]);
+  assert.equal(shot.text.totalLinks, 1);
+});

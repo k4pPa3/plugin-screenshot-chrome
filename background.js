@@ -464,9 +464,10 @@ async function capture(tab, settings, { override = false, log = () => {} } = {})
             let url;
             try { url = typeof href === "string" ? href : new URL(href.baseVal, document.baseURI).href; }
             catch (_) { continue; }
+            if (!url || links.has(url)) continue;
             linkChars += url.length;
             if (linkChars > 2000000) return null;
-            if (url) links.add(url);
+            links.add(url);
           }
           return { text, links: [...links], omittedLinks: document.links.length - limit };
         })()`, 30000);
