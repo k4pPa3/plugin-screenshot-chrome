@@ -89,6 +89,15 @@ basta premere ↻ sull'estensione in `chrome://extensions`.
 > Chrome su Windows e macOS non permette di installare file `.crx` che non provengono dal
 > Chrome Web Store: per questo l'estensione si distribuisce come cartella da caricare.
 
+### Aggiornare un’installazione da cartella
+
+In **Impostazioni → Aggiornamenti**, premi **Verifica aggiornamenti** e consenti l’accesso a
+GitHub quando richiesto. Se c’è una versione più recente, **Scarica ZIP** scarica il pacchetto
+dell’estensione. Estrai i file nella cartella già caricata, sovrascrivili e premi ↻ nella
+pagina delle estensioni del browser. Usare la stessa cartella conserva l’identità
+dell’estensione e le impostazioni locali. Per le installazioni da Chrome Web Store,
+Chrome gestisce gli aggiornamenti.
+
 ## Uso
 
 Clicca l'icona dell'estensione (o premi <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>), scegli
