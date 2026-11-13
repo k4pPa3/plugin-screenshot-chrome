@@ -136,7 +136,10 @@ function render(state) {
     setStatus(t("popup.saved", { width: state.width, height: state.height }));
     addHash(t("popup.hashOf", { file: state.filename }), state.hash);
     if (state.zipHash) addHash(t("popup.zipHash"), state.zipHash);
-    if (state.genTime) addHash(t("popup.tsaTime"), state.genTime);
+    if (state.genTime) {
+      const label = state.timestampVerification === "verified" ? "popup.tsaTime" : "popup.tsaTimeUnverified";
+      addHash(t(label), state.genTime);
+    }
     for (const [cls, list] of [["note", state.notes], ["warn", state.warnings]]) {
       for (const text of list || []) {
         const el = document.createElement("div");
