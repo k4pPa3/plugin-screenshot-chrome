@@ -24,6 +24,7 @@ async function context() {
     vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), c, { filename: file });
   }
   await Promise.resolve();
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'lib/verifyfile.js'), 'utf8'), c, { filename: 'lib/verifyfile.js' });
   c.eval = (source) => vm.runInContext(source, c);
   return c;
 }

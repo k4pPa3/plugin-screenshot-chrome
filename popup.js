@@ -188,6 +188,7 @@ switches.forEach((el) => el.addEventListener("change", () => { syncHarSwitch(); 
 custodyInputs.forEach((el) => el.addEventListener("change", persist));
 
 document.getElementById("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
+document.getElementById("openVerify").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("verify.html") }));
 tsaHint.addEventListener("click", (e) => {
   if (tsaHint.dataset.needsSettings) {
     e.preventDefault();

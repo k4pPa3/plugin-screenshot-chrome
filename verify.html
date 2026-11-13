@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forensic Web Capture</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { padding: 32px 16px; }
+    main { max-width: 640px; margin: auto; }
+    header { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; }
+    header img { width: 40px; height: 40px; }
+    h1 { font-size: 20px; margin: 0; }
+    p { line-height: 1.5; }
+    .desc { color: var(--muted); }
+    form, #result { border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-top: 20px; }
+    fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+    .field { padding-left: 14px; border-left: 3px solid var(--border); margin-bottom: 20px; }
+    .field > span { color: var(--fg); font-weight: 600; font-size: 13px; }
+    input[type="file"] { display: block; width: 100%; margin: 8px 0; font: inherit; }
+    small { display: block; color: var(--muted); line-height: 1.5; }
+    details { margin: 20px 0; }
+    summary { cursor: pointer; }
+    details label { display: block; margin-top: 12px; }
+    textarea { margin-top: 8px; }
+    #status { min-height: 1.5em; overflow-wrap: anywhere; }
+    #result { border-left-width: 4px; overflow-wrap: anywhere; }
+    #result.verified { border-left-color: var(--ok); }
+    #result.untrusted, #result.unsupported { border-left-color: var(--warn); }
+    #result.invalid { border-left-color: var(--danger); }
+    .error { color: var(--danger); }
+    dt { color: var(--muted); margin-top: 14px; }
+    dd { margin: 4px 0 0; white-space: pre-wrap; }
+    .hash { font: 12px ui-monospace, Consolas, monospace; user-select: all; }
+    a { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    footer { margin-top: 24px; }
+    @media (max-width: 420px) { form, #result { padding: 14px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><img src="icons/icon-128.png" alt=""><h1 data-i18n="verify.title"></h1></header>
+  <p class="desc" data-i18n="verify.intro"></p>
+  <form id="verifyForm">
+    <fieldset id="inputs" disabled>
+      <label class="field">
+        <span data-i18n="verify.file"></span>
+        <input type="file" id="evidenceFile" required>
+        <small data-i18n="verify.fileHelp"></small>
+      </label>
+      <label class="field">
+        <span data-i18n="verify.manifest"></span>
+        <input type="file" id="manifestFile" accept=".sha256">
+        <small data-i18n="verify.manifestHelp"></small>
+      </label>
+      <label class="field">
+        <span data-i18n="verify.token"></span>
+        <input type="file" id="tokenFile" accept=".tsr" required>
+      </label>
+      <details>
+        <summary data-i18n="verify.caTitle"></summary>
+        <label><span data-i18n="options.tsa.caPem"></span><textarea id="caPem" rows="6" spellcheck="false"></textarea></label>
+        <small data-i18n="verify.caHelp"></small>
+      </details>
+      <button type="submit" class="primary" data-i18n="verify.run"></button>
+    </fieldset>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+  <section id="result" aria-label="Verification" hidden></section>
+  <p class="desc" data-i18n="verify.limits"></p>
+  <footer><a href="options.html" data-i18n="popup.settings"></a></footer>
+</main>
+<script src="lib/i18n.js"></script>
+<script src="lib/locales/en.js"></script>
+<script src="lib/locales/it.js"></script>
+<script src="lib/locales/fr.js"></script>
+<script src="lib/locales/es.js"></script>
+<script src="lib/common.js"></script>
+<script src="lib/tsa.js"></script>
+<script src="lib/tsaroots.js"></script>
+<script src="lib/tsaverify.js"></script>
+<script src="lib/verifyfile.js"></script>
+<script src="verify.js"></script>
+</body>
+</html>

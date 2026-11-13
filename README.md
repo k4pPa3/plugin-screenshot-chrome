@@ -271,6 +271,20 @@ usala come alternativa quando non hai una TSA, o meglio insieme alla marca tempo
 
 ## Verificare un'acquisizione
 
+Dal popup scegli **Verifica marca temporale** (disponibile anche nelle Impostazioni).
+Se l'acquisizione è in uno ZIP, estrailo prima. Seleziona il file da verificare
+(PDF, immagine o altro reperto, con il nome originale), il relativo
+`<id>.manifest.sha256` e il token `<id>.tsr`, poi avvia la verifica.
+L'estensione controlla l'hash del file nel manifest, l'hash del manifest nel token,
+la firma e la catena dei certificati. L'esito riguarda solo il file selezionato.
+Non servono la ricevuta JSON né una connessione alla TSA: i file restano locali.
+Per una marca applicata direttamente a un file, lascia vuoto il campo manifest.
+Le CA personalizzate salvate nelle Impostazioni vengono proposte e possono essere
+modificate per la singola verifica. Revoca, qualificazione eIDAS e nonce originale
+non vengono verificati in questa modalità.
+
+In alternativa, puoi usare gli strumenti da riga di comando:
+
 **Hash dei file**
 
 ```sh

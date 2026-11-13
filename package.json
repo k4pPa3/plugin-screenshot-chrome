@@ -1,6 +1,6 @@
 {
   "name": "forensic-web-capture-tests",
   "private": true,
-  "scripts": { "test:browser": "node --test tests/browser/capture.cjs" },
+  "scripts": { "test:browser": "node --test tests/browser/capture.cjs tests/browser/verify.cjs" },
   "devDependencies": { "playwright": "1.62.1" }
 }

@@ -37,7 +37,7 @@ test('HAR recorder follows redirects, failures and completed requests', async ()
 test('extension code file list matches the package and the build fingerprint', async () => {
   const c = await context();
   const listed = [...c.eval('EXTENSION_CODE_FILES')].sort();
-  const onDisk = ['manifest.json', 'background.js', 'popup.html', 'popup.js', 'options.html', 'options.js', 'ui.css'];
+  const onDisk = ['manifest.json', 'background.js', 'popup.html', 'popup.js', 'options.html', 'options.js', 'verify.html', 'verify.js', 'ui.css'];
   for (const dir of ['lib', '_locales']) {
     const walk = (d) => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true })
       .flatMap((e) => e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]);

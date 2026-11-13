@@ -19,6 +19,8 @@ FILES = [
     "popup.js",
     "options.html",
     "options.js",
+    "verify.html",
+    "verify.js",
     "ui.css",
 ]
 DIRS = ["lib", "icons", "_locales"]
