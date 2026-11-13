@@ -139,21 +139,24 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const original = chrome.downloads.download.bind(chrome.downloads);
       const downloads = [];
+      let downloadId;
       chrome.downloads.download = async options => {
         downloads.push({ filename: options.filename, saveAs: options.saveAs });
         // Headless Chromium has no native file picker. Route the download to the CDP test directory.
-        return original({ ...options, saveAs: false });
+        downloadId = await original({ ...options, saveAs: false });
+        return downloadId;
       };
       try {
         const result = await run(tab);
-        return { downloads, result };
+        const [item] = await chrome.downloads.search({ id: downloadId });
+        return { downloads, result, savedPath: item.filename };
       } finally {
         chrome.downloads.download = original;
       }
     });
     assert.deepEqual(mhtmlExport.downloads, [{ filename: mhtmlExport.result.filename, saveAs: true }]);
     assert.match(mhtmlExport.result.filename, /\.mhtml$/);
-    const mhtml = await fs.readFile(path.join(profile, 'downloads', mhtmlExport.result.filename), 'utf8');
+    const mhtml = await fs.readFile(mhtmlExport.savedPath, 'utf8');
     assert.match(mhtml, /Content-Type: multipart\/related/i);
     assert.match(mhtml, /Capture fixture/);
     assert.equal(createHash('sha256').update(mhtml).digest('hex'), mhtmlExport.result.hash);
