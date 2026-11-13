@@ -120,3 +120,17 @@ test('MHTML alone downloads only the snapshot and skips screenshot work', async 
   await assert.rejects(c.run({ id: 1, url: 'http://example.test/final' }), { code: 'err.noOutput' });
   assert.equal(downloads.length, 1);
 });
+
+test('oversized MHTML is omitted and export budget is checked before ZIP allocation', async () => {
+  const { c, settings } = await harness();
+  settings.features = { ...settings.features, network: false, autoScroll: false, mhtml: true };
+  const send = c.send;
+  c.send = (...args) => args[1] === 'Page.captureSnapshot'
+    ? { data: 'x'.repeat(24 * 1024 * 1024 + 1) } : send(...args);
+  const shot = await c.capture({ id: 1 }, settings);
+  assert.equal(shot.mhtml, undefined);
+  assert.equal(shot.largeMhtml, true);
+  assert.ok(shot.image);
+  assert.throws(() => c.eval('assertExportSize')([{ name: 'oversized', bytes: { length: 96 * 1024 * 1024 } }]),
+    { code: 'err.exportTooLarge' });
+});

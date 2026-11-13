@@ -24,8 +24,9 @@ fornisce e il servizio di marca temporale. In particolare:
   `setTimeout`). Ogni valutazione ha un tempo massimo.
 - **Pagina che cambia indirizzo**: URL e titolo nel report sono quelli effettivi al momento
   dello screenshot; se differiscono da quelli iniziali viene segnalato.
-- **Dimensioni**: l'altezza catturata ha un limite configurabile, per evitare che una pagina
-  infinita esaurisca la memoria.
+- **Dimensioni**: limite di 40 milioni di pixel per lo screenshot e 96 MiB per l’export.
+  HTML e MHTML oltre 24 MiB vengono omessi con un avviso se restano altri file. Chrome
+  restituisce l’MHTML in un’unica risposta CDP: il limite si applica dopo la ricezione.
 - **HTML salvato**: il DOM viene codificato come testo inerte in un contenitore HTML controllato
   dall’estensione con CSP restrittiva. Nessuna parte del DOM viene interpretata come markup.
   Questa garanzia riguarda il sorgente HTML, non l’MHTML.
