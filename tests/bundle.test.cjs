@@ -21,7 +21,7 @@ async function bundle({ timestamp = true, zip = true, failTsa = false, verificat
     globalThis.outputs=[];
     const originalZip=makeZip;
     makeZip = (files,date) => { globalThis.outputs=files; return originalZip(files,date); };
-    download = async (bytes,mime,name) => { if (!testOptions.zip) globalThis.outputs.push({bytes,mime,name}); };
+    download = async () => {};
   `);
   const result = await c.run({ title: '$(Write-Output INJECTED)', url: 'https://example.test/' });
   return { c, result, files: c.outputs };
@@ -70,10 +70,10 @@ test('failed TSA keeps evidence, records failure, emits warning and hashes recei
   assert.equal(verify(files.find(f => f.name === 'SHA256SUMS.txt').bytes, files), true);
 });
 
-test('loose-file and TSA-disabled exports still include complete checksum coverage', async () => {
+test('automatically bundled TSA-disabled exports include complete checksum coverage', async () => {
   const { files } = await bundle({ timestamp: false, zip: false });
   assert.equal(files.some(f => f.name.endsWith('.tsr')), false);
-  const sums = files.find(f => f.name.endsWith('.SHA256SUMS.txt'));
+  const sums = files.find(f => f.name === 'SHA256SUMS.txt');
   assert.ok(sums);
   assert.equal(verify(sums.bytes, files), true);
   assert.equal(text(sums.bytes).trim().split('\n').length, files.length - 1);

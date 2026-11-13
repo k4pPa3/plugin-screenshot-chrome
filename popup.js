@@ -11,6 +11,7 @@ const custodyBox = document.getElementById("custodyBox");
 const custodySummary = document.getElementById("custodySummary");
 
 let settings;
+let pendingSettings = Promise.resolve();
 
 function setStatus(text, isError = false) {
   status.textContent = text;
@@ -26,9 +27,11 @@ function syncHarSwitch() {
 
 // Copertina e copia per la stampa esistono solo nel formato PDF.
 function syncCoverSwitch() {
+  formatEl.disabled = !document.querySelector('[data-feature="screenshot"]').checked;
+  widthEl.disabled = formatEl.disabled;
   for (const name of ["cover", "printPdf"]) {
     const el = document.querySelector(`[data-feature="${name}"]`);
-    el.disabled = formatEl.value !== "pdf";
+    el.disabled = formatEl.disabled || formatEl.value !== "pdf";
     el.closest(".switch").classList.toggle("disabled", el.disabled);
   }
 }
@@ -48,12 +51,17 @@ async function showTsaHint() {
 }
 
 function persist() {
-  return updateSettings((s) => {
-    s.width = Number(widthEl.value) || 0;
-    s.format = formatEl.value;
-    for (const el of switches) s.features[el.dataset.feature] = el.checked;
-    for (const el of custodyInputs) s.custody[el.dataset.custody] = el.value;
-  }).then((s) => { settings = s; syncCustody(); });
+  const width = Number(widthEl.value) || 0;
+  const format = formatEl.value;
+  const features = Object.fromEntries(switches.map((el) => [el.dataset.feature, el.checked]));
+  const custody = Object.fromEntries(custodyInputs.map((el) => [el.dataset.custody, el.value]));
+  const save = pendingSettings.then(() => updateSettings((s) => {
+    Object.assign(s, { width, format });
+    Object.assign(s.features, features);
+    Object.assign(s.custody, custody);
+  })).then((s) => { settings = s; syncCustody(); });
+  pendingSettings = save.catch((err) => { setStatus(err.message, true); });
+  return save;
 }
 
 // Riepilogo della catena di custodia nella riga chiusa; in rosso se i dati
@@ -170,7 +178,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 widthEl.addEventListener("change", persist);
 formatEl.addEventListener("change", () => { syncCoverSwitch(); persist(); });
-switches.forEach((el) => el.addEventListener("change", () => { syncHarSwitch(); persist(); }));
+switches.forEach((el) => el.addEventListener("change", () => { syncHarSwitch(); syncCoverSwitch(); persist(); }));
 custodyInputs.forEach((el) => el.addEventListener("change", persist));
 
 document.getElementById("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
@@ -191,7 +199,7 @@ timestampSwitch.addEventListener("change", async (e) => {
 button.addEventListener("click", () => startCapture(false));
 
 async function startCapture(override) {
-  await persist();
+  try { await persist(); } catch (_) { return; }
 
   if (custodyMissing()) {
     custodyBox.open = true;

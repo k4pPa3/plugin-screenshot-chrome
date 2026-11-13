@@ -23,11 +23,11 @@ async function bundle(features, shotExtra = {}) {
     globalThis.downloads = [];
     const originalZip = makeZip;
     makeZip = (files, date) => { globalThis.outputs = files; globalThis.zipBytes = originalZip(files, date); return globalThis.zipBytes; };
-    download = async (bytes, mime, name) => { globalThis.downloads.push({ name, bytes }); };
+    download = async (bytes, mime, name, folder, timeout, saveAs) => { globalThis.downloads.push({ name, bytes, saveAs }); };
   `);
-  await c.run({ title: 't', url: 'https://example.test/' });
+  const result = await c.run({ title: 't', url: 'https://example.test/' });
   // Con lo ZIP i file sono quelli archiviati, altrimenti quelli scaricati.
-  return { c, files: features.zip ? c.outputs : c.downloads, downloads: c.downloads };
+  return { c, files: c.outputs, downloads: c.downloads, result };
 }
 const find = (files, suffix) => files.find((f) => f.name.endsWith(suffix));
 
@@ -94,7 +94,8 @@ test('a text extraction failure is a warning, not a failed acquisition', async (
     getSettings = async () => ({...DEFAULT_SETTINGS, format:'png', features: {...DEFAULT_SETTINGS.features, text:true}});
     capture = async () => ({date:new Date('2026-11-06T08:00:00Z'),url:'https://example.test/',title:'t',
       width:800,height:600,image:new Uint8Array([1,2,3]),network:null,networkError:null,textError:'timeout'});
-    globalThis.names = []; download = async (b, m, name) => { globalThis.names.push(name); };
+    makeZip = files => { globalThis.names = files.map(f => f.name); return new Uint8Array(); };
+    download = async () => {};
   `);
   const result = await c.run({ title: 't', url: 'https://example.test/' });
   assert.ok(result.warnings.some((w) => c.tm(w).includes('timeout')));
@@ -102,25 +103,13 @@ test('a text extraction failure is a warning, not a failed acquisition', async (
   assert.ok(!c.names.some((n) => n.endsWith('.text.txt')));
 });
 
-test('a failed ZIP checksum download is a warning; the ZIP stays saved', async () => {
-  const c = await context();
-  c.eval(`
-    getSettings = async () => ({...DEFAULT_SETTINGS, format:'png', features: {...DEFAULT_SETTINGS.features, zip:true}});
-    capture = async () => ({date:new Date('2026-11-06T08:00:00Z'),url:'https://example.test/',title:'t',
-      width:800,height:600,image:new Uint8Array([1,2,3]),network:null,networkError:null});
-    globalThis.names = [];
-    download = async (b, m, name) => { if (name.endsWith('.zip.sha256')) throw new Error('disk full'); globalThis.names.push(name); };
-  `);
-  const result = await c.run({ title: 't', url: 'https://example.test/' });
-  assert.ok(result.zipHash);
-  assert.ok(c.names.some((n) => n.endsWith('.zip')));
-  assert.ok(result.warnings.some((w) => c.tm(w).includes('disk full')));
-});
-
-test('ZIP checksum is saved next to the archive in sha256sum format', async () => {
-  const { c, downloads } = await bundle({ zip: true });
-  const zip = downloads.find((d) => d.name.endsWith('.zip'));
-  const side = downloads.find((d) => d.name.endsWith('.zip.sha256'));
-  assert.ok(zip && side);
-  assert.equal(text(side.bytes), `${await sha256(c.zipBytes)}  ${zip.name}\n`);
+test('multiple outputs are downloaded once as a ZIP with its hash in the result', async () => {
+  const { downloads, files, result } = await bundle({});
+  assert.equal(downloads.length, 1);
+  assert.match(downloads[0].name, /\.zip$/);
+  assert.equal(downloads[0].saveAs, true);
+  assert.ok(find(files, '.png'));
+  assert.ok(find(files, '.report.txt'));
+  assert.ok(files.some(f => f.name === 'SHA256SUMS.txt'));
+  assert.equal(await sha256(downloads[0].bytes), result.zipHash);
 });

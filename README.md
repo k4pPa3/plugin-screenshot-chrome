@@ -48,8 +48,8 @@
 - **Integrità dell'ambiente**: sistema operativo, impronta del codice dell'estensione, confrontabile con quella
   pubblicata nella release, ed elenco facoltativo delle altre estensioni attive.
 - **Cronologia della scheda** (facoltativa) per documentare come si è arrivati alla pagina.
-- **Tutto in un unico ZIP** con `SHA256SUMS.txt`, pronto da archiviare o consegnare; l'impronta
-  dello ZIP viene salvata accanto in `<id>.zip.sha256`.
+- **Un solo salvataggio per acquisizione**. Più file vengono raccolti in uno ZIP. Il popup
+  mostra l'impronta SHA-256 dell'archivio.
 
 - **Quattro lingue**: inglese, italiano, francese e spagnolo, per interfaccia, report e copertina.
 
@@ -92,8 +92,10 @@ basta premere ↻ sull'estensione in `chrome://extensions`.
 ## Uso
 
 Clicca l'icona dell'estensione (o premi <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>), scegli
-larghezza, formato e funzioni, poi **Cattura pagina intera**. I file finiscono nella cartella
-Download; l’esito positivo viene mostrato solo dopo la conferma di completamento di Chrome; il popup mostra l'hash SHA-256 del file principale ed eventuali avvisi.
+le funzioni desiderate, poi premi **Cattura pagina intera**. Per salvare solo la pagina in
+MHTML, lascia attiva soltanto la relativa opzione. Chrome chiede la destinazione una volta.
+Se hai scelto più file, li raccoglie l’estensione in uno ZIP. Il popup mostra l’esito, le
+impronte e gli eventuali avvisi dopo la conferma del salvataggio.
 
 Durante la cattura Chrome mostra la barra *"Forensic Web Capture ha avviato il debug di questo
 browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e sparisce a fine cattura.
@@ -102,6 +104,7 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 
 | Interruttore | Cosa fa |
 |---|---|
+| Salva uno screenshot | Crea il file nel formato PDF, PNG o JPEG selezionato |
 | Pagina di copertina | Aggiunge al PDF una prima pagina con i dati dell'acquisizione (solo PDF) |
 | Copia PDF per la stampa | Salva anche `<id>.print.pdf` in fogli A4, adatto alla stampa (solo PDF) |
 | Scorri la pagina prima della cattura | Scorre fino in fondo per caricare le immagini *lazy* |
@@ -113,10 +116,12 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 | Contesto di rete esterno | Dopo la cattura interroga RDAP (IANA, registro del dominio, registro degli IP) e un servizio DNS-over-HTTPS; salva `<id>.netcontext.json`. **Contatta servizi esterni** |
 | Cookie e storage | Salva `<id>.storage.json` con cookie della pagina e dei frame, localStorage e sessionStorage; dei valori solo l'impronta SHA-256, salvo diversa scelta nelle Impostazioni |
 | Marca temporale RFC 3161 | Invia l’hash del manifest (reperti e report) alla TSA; salva token `.tsr` ed esito `.timestamp.json` |
+| Salva il report di testo (TXT) | Salva il report leggibile con dati e impronte |
 | Report anche in JSON | Salva il report anche in formato leggibile dalle macchine |
 | Report anche in HTML | Salva `<id>.report.html`, lo stesso report impaginato per lo schermo e la stampa (attivo di default) |
-| Bozza per invio tramite PEC | Salva a parte `<id>.pec.eml`, da aprire e spedire con il programma di posta configurato con la PEC |
-| Tutto in un unico ZIP | Raggruppa tutti i file in uno ZIP non compresso, con `SHA256SUMS.txt` |
+| Bozza per invio tramite PEC | Include nello ZIP `<id>.pec.eml`, da estrarre e aprire con il programma di posta configurato con la PEC |
+| Salva i file delle impronte SHA-256 | Include il manifest e `SHA256SUMS.txt`. Marca temporale e bozza PEC includono comunque il manifest che utilizzano |
+| Salva sempre come ZIP | Usa uno ZIP non compresso anche per un singolo file |
 
 ### Impostazioni
 
@@ -206,15 +211,15 @@ Con tutte le funzioni attive, ogni acquisizione produce:
 | `<id>.manifest.sha256` | Hash di screenshot, copie della pagina e report; è il file sottoposto a marcatura |
 | `<id>.timestamp.json` | Esito TSA, hash del manifest ed esito della verifica della firma (`verified`, `untrusted`, `invalid`, `unsupported`) con firmatario, catena e motivo, anche in caso di errore |
 | `SHA256SUMS.txt` | Hash di tutti gli altri file nello ZIP, inclusi report, manifest, token e ricevuta |
-| `<id>.pec.eml` | Bozza di messaggio per la PEC con manifest e report allegati; salvata a parte, non è un reperto |
-| `<id>.zip.sha256` | Hash dello ZIP, salvato accanto all'archivio (`sha256sum -c <id>.zip.sha256`) |
+| `<id>.pec.eml` | Bozza per la PEC con il manifest e, se selezionato, il report di testo. La bozza è nello ZIP e resta fuori dal manifest |
 
 `<id>` è `capture_<data>_<UUID>`: il titolo della pagina resta nei metadati e non entra nei
-nomi o nei comandi. Senza ZIP il riepilogo è `<id>.SHA256SUMS.txt`, sempre incluso.
+nomi o nei comandi. Il popup mostra l’impronta SHA-256 dello ZIP dopo il salvataggio.
 
 Il manifest viene creato **prima** della richiesta TSA: comprende anche i report immutabili,
 che descrivono la richiesta e rimandano alla ricevuta separata per l’esito. Token e ricevuta
-sono esclusi dal manifest per evitare dipendenze circolari, ma inclusi nel riepilogo finale.
+sono esclusi dal manifest per evitare dipendenze circolari. Se attivi i file delle impronte,
+`SHA256SUMS.txt` comprende anche token, ricevuta e l’eventuale bozza PEC.
 Lo schema JSON del report è `full-page-screenshot/report@2`.
 
 Gli hash da soli rilevano variazioni rispetto a un riferimento conservato: non autenticano
