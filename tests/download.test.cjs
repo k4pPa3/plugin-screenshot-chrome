@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { context } = require('./helpers.cjs');
+const { setTimeout: delay } = require('node:timers/promises');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function noListeners(c) {
   assert.equal(c.chrome.downloads.onChanged.listeners.size, 0);
@@ -40,3 +41,26 @@ for (const condition of ['interrupted', 'missing', 'renamed', 'removed', 'timeou
     await rejected; noListeners(c);
   });
 }
+
+test('Save As waits for a destination before timing out the download', async () => {
+  const c = await context();
+  let startDownload;
+  c.chrome.downloads.download = () => new Promise(resolve => { startDownload = resolve; });
+  let item = { state: 'in_progress', filename: '' };
+  c.chrome.downloads.search = async () => [item];
+
+  const download = c.download(new Uint8Array(), 'text/plain', 'test.txt', '', 25, true);
+  let settled = false;
+  const rejected = assert.rejects(download, /timeout/).finally(() => { settled = true; });
+  await delay(50);
+  assert.equal(settled, false, 'the browser has not returned a download ID');
+
+  startDownload(1);
+  await delay(50);
+  assert.equal(settled, false, 'the destination picker is still open');
+
+  item = { ...item, filename: '/chosen/renamed.txt' };
+  c.chrome.downloads.onChanged.emit({ id: 1, filename: { current: item.filename } });
+  await rejected;
+  noListeners(c);
+});

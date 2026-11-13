@@ -961,7 +961,7 @@ function buildReportJson(acq) {
 // anche lo stato corrente, così non si perdono download completati subito.
 function download(bytes, mime, filename, subfolder, timeoutMs = 120000, saveAs = false) {
   return new Promise((resolve, reject) => {
-    let id;
+    let id, timer;
     let settled = false;
     const finish = (error) => {
       if (settled) return;
@@ -979,10 +979,11 @@ function download(bytes, mime, filename, subfolder, timeoutMs = 120000, saveAs =
         else finish();
       }
       else if (item.state === "interrupted") finish(i18nError("err.download", { file: filename, error: item.error || "interrupted" }));
+      else if (saveAs && item.filename && timer === undefined && !settled) timer = setTimeout(onTimeout, timeoutMs);
     };
     const changed = (delta) => {
       if (delta.id !== id) return;
-      if (delta.state?.current === "complete") void check();
+      if (delta.filename?.current || delta.state?.current === "complete") void check();
       else inspect({ state: delta.state?.current, error: delta.error?.current });
     };
     const erased = (erasedId) => {
@@ -996,9 +997,14 @@ function download(bytes, mime, filename, subfolder, timeoutMs = 120000, saveAs =
         else inspect(item);
       } catch (err) { finish(err); }
     };
-    const timer = setTimeout(() => finish(i18nError("err.download", { file: filename, error: "timeout" })), timeoutMs);
-    // Le chiamate API periodiche mantengono attivo il service worker MV3.
-    const poll = setInterval(check, 5000);
+    const onTimeout = () => finish(i18nError("err.download", { file: filename, error: "timeout" }));
+    // Con Salva con nome il tempo decorre da quando Chrome ha una destinazione.
+    if (!saveAs) timer = setTimeout(onTimeout, timeoutMs);
+    // Mantiene attivo il service worker MV3 anche prima che Chrome assegni un ID.
+    const poll = setInterval(() => {
+      if (id === undefined) void chrome.runtime.getPlatformInfo().catch(() => {});
+      else void check();
+    }, 5000);
     chrome.downloads.onChanged.addListener(changed);
     chrome.downloads.onErased.addListener(erased);
     Promise.resolve().then(() => chrome.downloads.download({
