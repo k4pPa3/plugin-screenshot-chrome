@@ -4,6 +4,23 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.8.3] - 2026-11-13
+
+### Aggiunto
+
+- Verifica locale della marca temporale di un file salvato, dal popup e dalle
+  Impostazioni: collegamento file → manifest → token RFC 3161, firma e catena TSA.
+- Aggiornamento delle installazioni da cartella: dopo la scelta della cartella,
+  verifica SHA-256 dello ZIP GitHub, backup e sostituzione dei file; ricarica con un pulsante.
+- Pagina HTML autonoma di aggiornamento allegata alla release, per passare dalla
+  1.8.2 alla 1.8.3 senza estrazione o copia manuale. Funziona localmente in Chrome/Edge.
+
+### Sicurezza
+
+- Il pacchetto viene validato prima della scrittura: percorsi consentiti, limiti ZIP,
+  CRC e manifest. Backup preventivo, manifest scritto per ultimo e ripristino in caso
+  di errore. I file estranei al pacchetto e le impostazioni del browser restano conservati.
+
 ## [1.8.2] - 2026-11-13
 
 ### Sicurezza

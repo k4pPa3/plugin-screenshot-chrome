@@ -65,11 +65,11 @@ jobs:
           python3 tools/build_store.py
 
       - name: Calcola l'hash del pacchetto
-        run: cd dist && sha256sum *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: cd dist && sha256sum *.zip forensic-web-capture-update-*.html > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       - name: Pubblica la release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
           RELEASE_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
-        run: gh release create "$RELEASE_TAG" dist/*.zip dist/SHA256SUMS.txt dist/code-fingerprint-*.txt --target "$RELEASE_SHA" --title "$RELEASE_TAG" --generate-notes
+        run: gh release create "$RELEASE_TAG" dist/*.zip dist/forensic-web-capture-update-*.html dist/SHA256SUMS.txt dist/code-fingerprint-*.txt --target "$RELEASE_SHA" --title "$RELEASE_TAG" --generate-notes

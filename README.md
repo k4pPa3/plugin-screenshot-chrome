@@ -100,6 +100,26 @@ Chrome gestisce gli aggiornamenti.
 
 ## Uso
 
+### Aggiornare un’installazione da cartella
+
+Dalle Impostazioni scegli **Verifica aggiornamenti**, poi **Aggiorna nella cartella**.
+Seleziona la stessa cartella già caricata nel browser (quella con `manifest.json`):
+il pacchetto viene scaricato e verificato, viene creata una copia di sicurezza
+`.fwc-backup-…` e i file vengono sostituiti. Alla fine premi **Ricarica estensione**.
+Non rimuovere e reinstallare l’estensione: mantenendo la cartella conservi identità
+e impostazioni. Le credenziali in memoria di sessione vengono cancellate dalla ricarica.
+I backup restano nella cartella finché li elimini; i file estranei al pacchetto restano intatti.
+Se una scrittura fallisce, viene tentato il ripristino dei file precedenti.
+
+**Primo passaggio dalla 1.8.2:** scarica dalla release il file
+`forensic-web-capture-update-1.8.3.html` e aprilo in Chrome o Edge. Contiene già il
+pacchetto completo e funziona senza rete. Premi **Scegli cartella e aggiorna**,
+scegli la cartella attuale e infine premi Ricarica nella pagina delle estensioni.
+La 1.8.2 sa scaricare soltanto lo ZIP: il nuovo pulsante compare dalla 1.8.3.
+
+La scelta della cartella e il permesso di scrittura sono richiesti dal browser.
+Le installazioni gestite dal browser o dallo store seguono il loro canale di aggiornamento.
+
 Clicca l'icona dell'estensione (o premi <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>), scegli
 le funzioni desiderate, poi premi **Cattura pagina intera**. Per salvare solo la pagina in
 MHTML, lascia attiva soltanto la relativa opzione. Chrome chiede la destinazione una volta.

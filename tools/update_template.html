@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-@@SCRIPT_HASH@@'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Update Forensic Web Capture</title>
+  <style>@@STYLE@@
+    body { padding: 40px 20px; }
+    main { max-width: 640px; margin: auto; }
+    h1 { font-size: 24px; }
+    p { line-height: 1.6; overflow-wrap: anywhere; }
+    section { border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; padding: 20px; margin: 24px 0; }
+    #status { min-height: 3em; }
+    .error { color: var(--danger); }
+    .ok { color: var(--ok); }
+    .muted { color: var(--muted); }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1 data-i18n="updates.bootstrapTitle"></h1>
+  <p class="muted" data-i18n="updates.bootstrapIntro"></p>
+  <section>
+    <p id="ready"></p>
+    <button class="primary" id="install" data-i18n="updates.bootstrapRun"></button>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+  <p id="reload" data-i18n="updates.bootstrapReload" hidden></p>
+</main>
+<script id="package" type="application/octet-stream">@@PACKAGE@@</script>
+<script>@@SCRIPT@@</script>
+</body>
+</html>

@@ -50,6 +50,11 @@ hash, nonce and any configured credentials, and can observe the request IP and t
 metadata. No referral/advertising destination is contacted. The Satispay support panel
 only copies a public username into the clipboard after a user click.
 
+For development installations loaded from a folder, the optional updater can write
+the verified release package and a backup to a directory explicitly selected through
+the browser file picker. It does not retain directory handles between sessions or send
+local paths to GitHub. Store-managed installations do not offer this update path.
+
 Confirm the dashboard's Limited Use certifications only after checking that their wording
 matches this implementation. The code does not sell data or transfer it for advertising,
 creditworthiness or lending, and does not give the developer access to the captures.

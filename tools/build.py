@@ -4,6 +4,7 @@ Uso: python tools/build.py               crea pacchetto e impronta del codice
      python tools/build.py --fingerprint  stampa solo l'impronta del codice
 """
 import hashlib
+import base64
 import json
 import re
 import shutil
@@ -24,6 +25,27 @@ FILES = [
     "ui.css",
 ]
 DIRS = ["lib", "icons", "_locales"]
+
+
+def build_update_page(package: Path, version: str) -> Path:
+    """Aggiornamento autonomo per il passaggio dalle versioni che scaricano solo ZIP."""
+    data = package.read_bytes()
+    update = {"version": version, "size": len(data), "digest": hashlib.sha256(data).hexdigest()}
+    scripts = ["lib/i18n.js", "lib/locales/en.js", "lib/locales/it.js", "lib/locales/fr.js",
+               "lib/locales/es.js", "lib/common.js", "lib/zip.js", "lib/updates.js", "lib/updateinstall.js"]
+    script = "\n".join((ROOT / name).read_text(encoding="utf-8") for name in scripts)
+    script += "\nconst bundledUpdate = " + json.dumps(update) + ";\n"
+    script += (ROOT / "tools" / "update_page.js").read_text(encoding="utf-8")
+    if "</script" in script.lower():
+        raise ValueError("Unexpected closing script tag in updater source")
+    digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    page = (ROOT / "tools" / "update_template.html").read_text(encoding="utf-8")
+    for key, value in {"SCRIPT_HASH": digest, "STYLE": (ROOT / "ui.css").read_text(encoding="utf-8"),
+                       "PACKAGE": base64.b64encode(data).decode(), "SCRIPT": script}.items():
+        page = page.replace(f"@@{key}@@", value)
+    out = package.parent / f"forensic-web-capture-update-{version}.html"
+    out.write_text(page, encoding="utf-8", newline="\n")
+    return out
 
 
 def code_fingerprint() -> str:
@@ -59,6 +81,9 @@ def main() -> int:
 
     # Copia estratta, pronta per "Carica estensione non pacchettizzata".
     unpacked = out.with_suffix("")
+    allowed = ROOT.resolve() / "dist"
+    if out.parent.resolve() != allowed or unpacked.resolve().parent != allowed or unpacked.is_symlink():
+        raise ValueError("Build target must stay inside the workspace dist directory")
     if unpacked.exists():
         shutil.rmtree(unpacked)
     for p in paths:
@@ -72,6 +97,8 @@ def main() -> int:
     (out.parent / f"code-fingerprint-{version}.txt").write_text(
         f"Forensic Web Capture {version}\ncode fingerprint (SHA-256): {fingerprint}\n", encoding="utf-8")
     print(f"impronta del codice: {fingerprint}")
+    updater = build_update_page(out, version)
+    print(f"{updater.relative_to(ROOT).as_posix()} (aggiornamento con sostituzione dei file)")
     return 0
 
 

@@ -361,11 +361,19 @@ let availableUpdate;
 let updateStatus;
 let checkingUpdate = false;
 let startingUpdateDownload = false;
+let installingUpdate = false;
+let installedUpdate = false;
+let developmentInstall = false;
+let downloadedUpdate;
 
 function renderUpdates() {
-  $("checkUpdates").disabled = checkingUpdate || startingUpdateDownload;
-  $("downloadUpdate").disabled = startingUpdateDownload;
-  $("downloadUpdate").hidden = !availableUpdate?.downloadUrl;
+  const busy = checkingUpdate || startingUpdateDownload || installingUpdate;
+  $("checkUpdates").disabled = busy || installedUpdate;
+  $("downloadUpdate").disabled = busy;
+  $("downloadUpdate").hidden = !availableUpdate?.downloadUrl || installedUpdate;
+  $("installUpdate").disabled = busy;
+  $("installUpdate").hidden = !developmentInstall || !availableUpdate?.downloadUrl || installedUpdate || typeof showDirectoryPicker !== "function";
+  $("reloadUpdate").hidden = !installedUpdate;
   $("updateInstructions").hidden = !availableUpdate?.downloadUrl;
   const releaseLink = $("updateRelease");
   releaseLink.hidden = !availableUpdate;
@@ -379,11 +387,12 @@ function renderUpdates() {
 
 $("checkUpdates").addEventListener("click", async () => {
   availableUpdate = null;
+  downloadedUpdate = null;
   checkingUpdate = true;
   updateStatus = msg("updates.checking");
   renderUpdates();
   try {
-    const granted = await chrome.permissions.request({ origins: [UPDATE_ORIGIN] });
+    const granted = await chrome.permissions.request({ origins: [UPDATE_ORIGIN, ...UPDATE_ASSET_ORIGINS] });
     if (!granted) {
       updateStatus = msg("updates.denied");
       return;
@@ -413,6 +422,7 @@ $("downloadUpdate").addEventListener("click", async () => {
       return;
     }
     const bytes = await fetchVerifiedUpdate(update);
+    downloadedUpdate = { update, bytes };
     const url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
     try {
       await chrome.downloads.download({ url, filename: update.filename, saveAs: true, conflictAction: "uniquify" });
@@ -430,10 +440,40 @@ $("downloadUpdate").addEventListener("click", async () => {
   }
 });
 
+$("installUpdate").addEventListener("click", async () => {
+  if (!developmentInstall || !availableUpdate?.downloadUrl || installingUpdate || startingUpdateDownload || installedUpdate) return;
+  const update = availableUpdate;
+  installingUpdate = true;
+  updateStatus = msg("updates.installing");
+  renderUpdates();
+  try {
+    // Il selettore deve essere aperto direttamente dal clic, prima di fetch/await.
+    const directory = await showDirectoryPicker({ id: "fwc-extension", mode: "readwrite" });
+    const { capture } = await chrome.storage.session.get("capture");
+    if (capture?.status === "running") throw i18nError("updates.captureBusy");
+    const bytes = downloadedUpdate?.update === update ? downloadedUpdate.bytes : await fetchVerifiedUpdate(update);
+    const archive = await readUpdateArchive(bytes, update);
+    const result = await installUpdateFolder(directory, archive, manifest.version);
+    installedUpdate = true;
+    downloadedUpdate = null;
+    updateStatus = msg("updates.installedFiles", result);
+  } catch (error) {
+    const key = error.name === "AbortError" ? "updates.cancelled"
+      : error.code?.startsWith("updates.") ? error.code : "updates.installFailed";
+    updateStatus = msg(key, error.params || {});
+  } finally {
+    installingUpdate = false;
+    renderUpdates();
+  }
+});
+$("reloadUpdate").addEventListener("click", () => chrome.runtime.reload());
+
 $("installedVersion").textContent = manifest.version;
 chrome.management.getSelf().then(({ installType }) => {
+  developmentInstall = installType === "development";
   $("githubUpdates").hidden = installType !== "development";
   $("managedUpdates").hidden = installType === "development";
+  renderUpdates();
 }).catch(() => { $("managedUpdates").hidden = false; });
 $("version").textContent = `${manifest.name} ${manifest.version}`;
 

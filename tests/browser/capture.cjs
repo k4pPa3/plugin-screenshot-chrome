@@ -253,7 +253,7 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     await options.locator('#downloadUpdate').click();
     await options.waitForFunction(() => window.updateCalls.length === 5);
     assert.deepEqual(await options.evaluate(() => window.updateCalls), [
-      { origins: ['https://api.github.com/*'] },
+      { origins: ['https://api.github.com/*', 'https://github.com/*', 'https://release-assets.githubusercontent.com/*'] },
       'https://api.github.com/repos/k4pPa3/plugin-screenshot-chrome/releases/latest',
       { origins: ['https://github.com/*', 'https://release-assets.githubusercontent.com/*'] },
       updateUrl,

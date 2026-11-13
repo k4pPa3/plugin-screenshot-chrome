@@ -23,6 +23,12 @@ capture workflow. Do not use personal, production or investigative data for this
    that provider, then use Test service. If it is unavailable, the UI reports the failure;
    a timestamp is not required for ordinary capture. No reviewer credentials are supplied
    or necessary. Custom/paid providers use credentials entered by the user.
+8. For a saved acquisition, open Verify timestamp from the popup or Options. Choose
+   one evidence file, its manifest and RFC 3161 response. Verification stays local.
+9. Only installations loaded from a folder offer the folder updater. A user-selected
+   directory is required; the verified package is backed up and copied there. The
+   extension never evaluates downloaded scripts. Store-managed installations use
+   the browser update mechanism and do not offer this updater.
 
 Limitations: internal browser pages are rejected by the current capture mode. Full-page
 viewport expansion can alter viewport-relative layouts. TSA verification checks signature

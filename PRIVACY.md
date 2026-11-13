@@ -82,6 +82,13 @@ l’indirizzo IP e i metadati della connessione. **Scarica ZIP** avvia il downlo
 da GitHub e dal suo host per gli allegati (`release-assets.githubusercontent.com`),
 senza credenziali. L’estensione verifica dimensione e SHA-256 prima di salvare lo ZIP.
 
+**Aggiorna nella cartella** usa lo stesso pacchetto verificato e richiede la scelta esplicita
+della cartella e il permesso di scrittura del browser. Scrive i file dell’estensione e una
+copia di sicurezza `.fwc-backup-…` nella cartella scelta; non invia i percorsi a GitHub.
+Il backup resta finché viene eliminato dall’utente. La pagina HTML autonoma allegata alla
+release contiene già il pacchetto e non effettua richieste di rete. Non vengono conservate
+autorizzazioni alla cartella dall’estensione tra una sessione e l’altra.
+
 ## Connessioni esterne e marca temporale facoltativa
 
 Con la marca temporale attiva, l'estensione contatta il servizio **TSA selezionato
