@@ -23,6 +23,9 @@ function syncHarSwitch() {
   const har = document.querySelector('[data-feature="har"]');
   har.disabled = !document.querySelector('[data-feature="network"]').checked;
   har.closest(".switch").classList.toggle("disabled", har.disabled);
+  const shareable = document.querySelector('[data-feature="shareableHar"]');
+  shareable.disabled = har.disabled || !har.checked;
+  shareable.closest(".switch").classList.toggle("disabled", shareable.disabled);
 }
 
 // Copertina e copia per la stampa esistono solo nel formato PDF.

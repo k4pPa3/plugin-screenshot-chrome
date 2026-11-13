@@ -103,3 +103,18 @@ test('environment, history and qualified TSA appear in the reports', async () =>
   assert.ok(result.warnings.map(c.tm).some((w) => /HAR collection/.test(w)));
   assert.match(text('.manifest.sha256'), /\.har/);
 });
+
+test('shareable HAR excludes request and response secrets without changing the original', async () => {
+  const c = await context();
+  const original = c.buildHar([{
+    request: { url: 'https://private.test/?token=query-secret', headers: { 'X-API-Key': 'header-secret' } },
+    response: { status: 200, headers: { location: 'https://private.test/location-secret' } },
+    bodyText: 'body-secret', bodySize: 11, startTs: 1, endTs: 2
+  }], { creator: 'test', version: '1', pageTitle: 'title-secret' });
+  const shared = c.buildShareableHar(original);
+  assert.doesNotMatch(JSON.stringify(shared), /private\.test|secret/);
+  assert.equal(shared.log.entries[0].response.status, 200);
+  assert.equal(shared.log.entries[0].response.content.size, 11);
+  assert.equal(shared.log.entries[0].time, 1000);
+  assert.match(JSON.stringify(original), /query-secret.*header-secret/);
+});
