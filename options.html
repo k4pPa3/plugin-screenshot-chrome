@@ -50,6 +50,22 @@
     </label>
   </section>
 
+  <section aria-labelledby="updatesHeading">
+    <h2 id="updatesHeading" data-i18n="updates.title"></h2>
+    <p><span data-i18n="updates.installed"></span> <strong id="installedVersion"></strong></p>
+    <p class="desc" id="managedUpdates" data-i18n="updates.managed" hidden></p>
+    <div id="githubUpdates" hidden>
+      <p class="desc" data-i18n="updates.github"></p>
+      <div class="actions">
+        <button type="button" class="secondary" id="checkUpdates" data-i18n="updates.check"></button>
+        <button type="button" class="primary" id="downloadUpdate" data-i18n="updates.download" hidden></button>
+        <a id="updateRelease" data-i18n="updates.release" target="_blank" rel="noopener noreferrer" hidden></a>
+      </div>
+      <p id="updateStatus" role="status" aria-live="polite" hidden></p>
+      <p class="desc" id="updateInstructions" data-i18n="updates.instructions" hidden></p>
+    </div>
+  </section>
+
   <section>
     <h2 data-i18n="options.tsa.title"></h2>
     <p class="desc" data-i18n="options.tsa.desc"></p>
@@ -238,6 +254,7 @@
 <script src="lib/tsaroots.js"></script>
 <script src="lib/tsaverify.js"></script>
 <script src="lib/vault.js"></script>
+<script src="lib/updates.js"></script>
 <script src="options.js"></script>
 </body>
 </html>
