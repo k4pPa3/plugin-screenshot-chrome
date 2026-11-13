@@ -132,6 +132,17 @@ test('real extension: redirect, scroll traffic, completed and interrupted downlo
     });
     assert.equal(await popup.locator('#format').isDisabled(), true);
     assert.equal(await popup.locator('[data-feature="printPdf"]').isDisabled(), true);
+    await popup.evaluate(() => pendingSettings);
+    // The worker and popup run in separate renderer contexts. Wait for the
+    // settings to become visible to the same context that performs the export.
+    await worker.evaluate(async () => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const { features } = await getSettings();
+        if (Object.keys(features).filter(key => features[key]).join() === 'mhtml') return;
+        await sleep(50);
+      }
+      throw new Error('The capture worker did not receive the MHTML-only settings');
+    });
     await popup.close();
     await page.bringToFront();
 
