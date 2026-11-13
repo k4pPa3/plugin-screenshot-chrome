@@ -4,6 +4,16 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
+## [1.8.1] - 2026-11-13
+
+### Corretto
+
+- Screenshot, report TXT e file delle impronte seguono le opzioni del popup. Con il solo
+  MHTML attivo si salva un unico file `.mhtml`.
+- Una sola scelta della destinazione per acquisizione. Più file, inclusa l'eventuale bozza
+  PEC, vengono salvati in uno ZIP. Il popup mostra l'impronta SHA-256 dell'archivio.
+- Il timeout del download parte dopo la scelta della destinazione.
+
 ## [1.8.0] - 2026-11-06
 
 ### Aggiunto
@@ -315,6 +325,7 @@ Prima versione completa, non pubblicata.
 
 - Screenshot della pagina intera in PNG o JPEG con larghezza simulata.
 
+[1.8.1]: ../../releases/tag/v1.8.1
 [1.8.0]: ../../releases/tag/v1.8.0
 [1.7.6]: ../../releases/tag/v1.7.6
 [1.7.5]: ../../releases/tag/v1.7.5
