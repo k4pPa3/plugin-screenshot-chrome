@@ -113,6 +113,7 @@ browser"*: è normale, perché l'estensione usa il Chrome DevTools Protocol, e s
 | Salva testo visibile e link | Salva `<id>.text.txt` con il testo della pagina come lo legge chi la guarda e l'elenco dei link (documento principale, non gli iframe) |
 | Dati di rete e certificato | **Ricarica la pagina** e registra risposta HTTP, IP, redirect, header e certificato TLS; salva la catena in `<id>.cert.pem` |
 | Registro HAR delle risorse osservate | Con i dati di rete, salva `<id>.har` con ogni richiesta e risposta e l'SHA-256 dei contenuti |
+| Copia HAR per la condivisione | Con il registro HAR, aggiunge `<id>.share.har` con stati HTTP, tempi e dimensioni. Per la condivisione, estrai solo questa copia dallo ZIP. Il registro originale può contenere credenziali |
 | Contesto di rete esterno | Dopo la cattura interroga RDAP (IANA, registro del dominio, registro degli IP) e un servizio DNS-over-HTTPS; salva `<id>.netcontext.json`. **Contatta servizi esterni** |
 | Cookie e storage | Salva `<id>.storage.json` con cookie della pagina e dei frame, localStorage e sessionStorage; dei valori solo l'impronta SHA-256, salvo diversa scelta nelle Impostazioni |
 | Marca temporale RFC 3161 | Invia l’hash del manifest (reperti e report) alla TSA; salva token `.tsr` ed esito `.timestamp.json` |

@@ -1140,6 +1140,10 @@ async function run(tab, options = {}) {
       pageTitle: acq.title, collection: shot.network?.harCollection,
       startedAt: shot.network?.harCollection?.startedAt || shot.date.toISOString(), redacted: t("value.redacted") });
     related.push(await fileEntry(`${base}.har`, "har", t("role.har"), new TextEncoder().encode(JSON.stringify(har)), "application/json"));
+    if (features.shareableHar) {
+      related.push(await fileEntry(`${base}.share.har`, "har-share", t("role.shareableHar"),
+        new TextEncoder().encode(JSON.stringify(buildShareableHar(har))), "application/json"));
+    }
   }
   if (shot.text) {
     related.push(await fileEntry(`${base}.text.txt`, "text", t("role.text"),
