@@ -4,7 +4,7 @@ Tutte le modifiche rilevanti del progetto. Il formato segue
 [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e il progetto usa il
 [Semantic Versioning](https://semver.org/lang/it/).
 
-## [1.8.3] - 2026-11-13
+## [1.8.3] - 2026-11-15
 
 ### Aggiunto
 

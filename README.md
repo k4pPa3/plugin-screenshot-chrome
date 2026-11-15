@@ -91,12 +91,10 @@ basta premere ↻ sull'estensione in `chrome://extensions`.
 
 ### Aggiornare un’installazione da cartella
 
-In **Impostazioni → Aggiornamenti**, premi **Verifica aggiornamenti** e consenti l’accesso a
-GitHub quando richiesto. Se c’è una versione più recente, **Scarica ZIP** scarica il pacchetto
-dell’estensione dopo aver verificato dimensione e SHA-256 pubblicati da GitHub. Estrai i file nella cartella già caricata, sovrascrivili e premi ↻ nella
-pagina delle estensioni del browser. Usare la stessa cartella conserva l’identità
-dell’estensione e le impostazioni locali. Per le installazioni da Chrome Web Store,
-Chrome gestisce gli aggiornamenti.
+Dalla versione 1.8.3 puoi aggiornare direttamente la cartella dalle Impostazioni.
+Per i passaggi completi e il primo aggiornamento dalla 1.8.2, vedi
+[Aggiornare un’installazione da cartella](#aggiornare-uninstallazione-da-cartella-1)
+nella sezione Uso. Per le installazioni da Chrome Web Store, Chrome gestisce gli aggiornamenti.
 
 ## Uso
 
